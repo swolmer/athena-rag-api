@@ -142,5 +142,11 @@ curl -X POST http://127.0.0.1:8000/chat \
 
 ## License and Use
 
-This implementation is for internal clinical use and educational purposes. Distribution or deployment in regulated medical settings must comply with local medical device software regulations.
+This software and all associated materials are proprietary to Athena AI Platform and developed by Sophie A. Wolmer. The codebase is intended strictly for internal clinical use, research, and educational purposes within authorized organizations.
+
+Unauthorized copying, redistribution, modification, or deployment—especially in regulated medical or commercial environments—is strictly prohibited without explicit written permission from the Athena AI Platform development team.
+
+Users must comply with all applicable local, national, and international medical device regulations when deploying this software in clinical or commercial settings.
+
+For licensing inquiries, commercial use, or partnership opportunities, please contact the Athena AI Platform development team directly.
 
