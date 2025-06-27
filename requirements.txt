@@ -1,0 +1,18 @@
+# requirements-gpu.txt
+torch==2.1.0+cu121 --index-url https://download.pytorch.org/whl/cu121
+torchvision
+torchaudio
+bitsandbytes
+accelerate
+transformers==4.39.3
+peft==0.10.0
+sentence-transformers
+faiss-cpu
+scikit-learn
+pandas
+nltk
+Pillow
+python-docx
+pytesseract
+fpdf
+evaluate
