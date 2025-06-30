@@ -39,7 +39,7 @@ Leveraging a state-of-the-art 7B parameter large language model, Athena seamless
 
 ## API Endpoints
 
-### `POST /chat`
+### `POST /query`
 
 Accepts a clinical or surgical question and returns a structured model response using RAG over a curated corpus.
 
@@ -50,7 +50,6 @@ Accepts a clinical or surgical question and returns a structured model response 
 ```json
 {
   "question": "How is a DIEP flap performed?",
-  "slm_id": "plastic-surgery-rag-v1"
 }
 ```
 
@@ -81,10 +80,6 @@ Returns usage metrics and hallucination analysis from the internal logging syste
   "avg_overlap_score": 0.81
 }
 ```
-
-### `GET /slm/list`
-
-Returns available domain-specific language models (SLMs) available for routing.
 
 ---
 
