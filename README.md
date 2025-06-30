@@ -49,7 +49,7 @@ Accepts a clinical or surgical question and returns a structured model response 
 **Request Body:**
 ```json
 {
-  "question": "What are the key anatomical landmarks and vascular considerations when injecting filler into the nasolabial folds??",
+  "question": "How is a DIEP flap performed?",
   "slm_id": "plastic-surgery-rag-v1"
 }
 ```

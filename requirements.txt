@@ -1,39 +1,40 @@
-# --- Core App Framework ---
-fastapi>=0.111.0
-uvicorn[standard]>=0.27.0
-python-dotenv>=1.0.1
-
-# --- Model Inference & Transformers ---
-transformers>=4.39.0
-sentence-transformers>=2.3.0
-evaluate>=0.4.1
-
-# --- FAISS for Vector Search ---
-faiss-cpu>=1.7.4
-# faiss-gpu>=1.7.4  # Uncomment this if you're using GPU FAISS
-
-# --- PyTorch for GPU inference (match with your CUDA version) ---
+# Core ML
 torch==2.1.2+cu121
+torchaudio==2.1.2+cu121
+torchvision==0.16.2+cu121
 --extra-index-url https://download.pytorch.org/whl/cu121
 
-# --- PDF, Word, Image Parsing for RAG Materials ---
-PyMuPDF>=1.23.0        # For extracting from PDFs
-python-docx>=1.1.0      # For extracting from DOCX
-pytesseract>=0.3.10     # For OCR
-pillow>=10.0.0          # For image processing
+transformers==4.38.2
+sentence-transformers==2.2.2
+accelerate==0.28.0
+evaluate==0.4.4
+scikit-learn==1.3.2
 
-# --- NLP Utilities ---
-nltk>=3.8.1
-scikit-learn>=1.3.0     # For cosine similarity, evaluation
-numpy>=1.25.0
-pandas>=2.0.0
+# FAISS (CPU version)
+faiss-cpu==1.7.4
 
-# --- Optional Logging / Analytics Tools ---
-loguru>=0.7.0           # Pretty logging (optional)
-rich>=13.0.0            # Pretty console output (optional)
+# File parsing
+PyMuPDF==1.26.1
+pytesseract==0.3.10
+pillow==9.5.0
+python-docx==1.2.0
+pdfminer.six==20221105
 
-# --- CORS (already included via uvicorn[standard], listed for clarity) ---
-starlette>=0.37.2
+# Tokenization
+nltk==3.9.1
+protobuf==3.20.3  # Needed for tokenizer to work
 
-# --- For Future DevOps/API Extensions ---
-httpx>=0.25.0           # For async HTTP client
+# FastAPI + dev server
+fastapi==0.100.1
+uvicorn==0.23.2
+
+# Utilities
+python-dotenv==1.0.0
+tqdm==4.65.0
+loguru==0.7.2
+pandas==2.1.4
+numpy==1.26.4  # Avoid NumPy 2.x for now to prevent runtime crashes
+
+# Optional extras (only if needed)
+regex
+rich

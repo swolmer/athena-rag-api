@@ -17,45 +17,43 @@ from torch.utils.data import Dataset
 
 # --- Environment Variables ---
 from dotenv import load_dotenv
-load_dotenv()  # ✅ Loads variables from .env file into environment
+load_dotenv()  # ✅ Load environment variables from .env file
 
-# ✅ Read API key from .env (used in FastAPI server or secure client access)
-RAG_API_KEY = os.getenv("RAG_API_KEY", "")
+HF_TOKEN = os.getenv("HF_TOKEN")
+RAG_API_KEY = os.getenv("RAG_API_KEY")
 
-# --- Natural Language Tokenization ---
+if not RAG_API_KEY:
+    print("⚠️ RAG_API_KEY is not set. Check your .env file.")
+
+# --- Natural Language Processing (safe tokenizer setup) ---
 import nltk
 import nltk.data
 from nltk.tokenize.punkt import PunktSentenceTokenizer
 
-# ✅ Ensure NLTK punkt tokenizer is downloaded to a persistent directory
+# ✅ Download and configure NLTK Punkt tokenizer safely
 nltk_data_path = os.path.join(os.path.expanduser("~"), "nltk_data")
-nltk.download("punkt", download_dir=nltk_data_path)
+nltk.download("punkt", download_dir=nltk_data_path, quiet=True)
 nltk.data.path.append(nltk_data_path)
 
-# ✅ Safe sentence tokenizer to avoid NLTK punkt_tab bug
 def safe_sent_tokenize(text, lang='english'):
     try:
-        # Load pretrained Punkt tokenizer from NLTK's path
         punkt_path = nltk.data.find(f'tokenizers/punkt/{lang}.pickle')
         with open(punkt_path, 'rb') as f:
             tokenizer = pickle.load(f)
         return tokenizer.tokenize(text)
     except Exception as e:
-        print(f"❌ Custom sent_tokenize failed: {e}")
-        return text.split('.')  # Fallback
+        print(f"❌ NLTK sent_tokenize fallback used due to: {e}")
+        return text.split('.')  # Fallback method
 
-
-# Hugging Face model/tokenizer/trainer
+# --- Transformers and Model Handling ---
 from transformers import (
-    AutoTokenizer,
-    AutoModelForCausalLM,
     AutoConfig,
     Trainer,
     EarlyStoppingCallback,
     TrainingArguments
 )
 
-# CUDA device info
+# --- CUDA Device Info ---
 print("🧠 Checking CUDA support:")
 print("CUDA Available:", torch.cuda.is_available())
 if torch.cuda.is_available():
@@ -63,36 +61,67 @@ if torch.cuda.is_available():
 else:
     print("⚠️ No CUDA-compatible GPU detected. Training will run on CPU.")
 
-# File extraction utilities
+# --- File Extraction Utilities ---
 import fitz  # PyMuPDF
 from PIL import Image
 import pytesseract
 from docx import Document
 
-# RAG embedding + retrieval
+# --- Embedding and Retrieval ---
 from sentence_transformers import SentenceTransformer
 import faiss
 
-# Evaluation utilities
+# --- Evaluation ---
 from evaluate import load as load_metric
 
-# Optional Hugging Face token login
-# from huggingface_hub import login  # Only needed if pushing to hub or accessing gated models
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+
+app = FastAPI()
+
+@app.get("/")
+def root():
+    return JSONResponse(content={"message": "Athena Surgical RAG API is running."})
+
+class QueryRequest(BaseModel):
+    question: str
+
+@app.post("/query")
+def query_api(request: QueryRequest):
+    user_question = request.question.strip()
+    if not user_question:
+        return JSONResponse(content={"error": "No question provided."}, status_code=400)
+
+    context_chunks = retrieve_context(user_question)
+    answer = generate_rag_answer_with_context(
+        user_question=user_question,
+        context_chunks=context_chunks,
+        mistral_tokenizer=tokenizer,
+        mistral_model=rag_model
+    )
+    return {"question": user_question, "answer": answer}
+
 
 # ============================
 # 2. CONFIGURATION — FIXED
 # ============================
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-TRAINING_DATA_DIR = os.path.join(BASE_DIR, "data")
-MODEL_DIR = os.path.join(BASE_DIR, "models")
-FAISS_INDEX_PATH = os.path.join(BASE_DIR, "faiss_index", "faiss.index")
-CHUNKS_PKL_PATH = os.path.join(BASE_DIR, "faiss_index", "rag_chunks.pkl")
-EMBEDDINGS_NPY_PATH = os.path.join(BASE_DIR, "faiss_index", "rag_embeddings.npy")
-LLM_MODEL_NAME = "mistralai/Mistral-7B-v0.1"  # or use a smaller open LLM
+TRAINING_DATA_DIR = os.path.join(BASE_DIR, "training set")
+MODEL_DIR = os.path.join(BASE_DIR, "Models")
+CSV_PATH = os.path.join(BASE_DIR, "Training_QA_Pairs.csv")
 
-# ✅ Optional: Load Hugging Face token (for gated/private models or pushing to hub)
-HF_TOKEN = os.environ.get("HF_TOKEN", "")
+# ✅ RAG-specific paths
+FAISS_INDEX_PATH = os.path.join(BASE_DIR, "faiss_index.idx")
+CHUNKS_PKL_PATH = os.path.join(BASE_DIR, "rag_chunks.pkl")
+EMBEDDINGS_NPY_PATH = os.path.join(BASE_DIR, "rag_embeddings.npy")
+
+# ✅ Model identifiers
+EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
+LLM_MODEL_NAME = "NousResearch/Hermes-2-Pro-Mistral-7B"  # ✅ Only declared once now
+
+# ✅ Optional: Load Hugging Face token
 if HF_TOKEN:
     from huggingface_hub import login
     login(token=HF_TOKEN)
@@ -109,24 +138,31 @@ if torch.cuda.is_available():
 else:
     print("⚠️ CUDA not available — using CPU")
 
-# ✅ Base working directory
-BASE_DIR = r"C:\Users\sophi\Downloads\MyFlaskApp"
+# ============================
+# 2B. GLOBAL TOKENIZER & MODEL
+# ============================
 
-# ✅ Directory structure
-MODEL_DIR = os.path.join(BASE_DIR, "Models")
-TRAINING_DATA_DIR = os.path.join(BASE_DIR, "training set")
-CSV_PATH = os.path.join(BASE_DIR, "Training_QA_Pairs.csv")
+from transformers import AutoTokenizer, AutoModelForCausalLM
 
-# ✅ RAG-specific paths
-FAISS_INDEX_PATH = os.path.join(BASE_DIR, "faiss_index.idx")
-CHUNKS_PKL_PATH = os.path.join(BASE_DIR, "rag_chunks.pkl")
-EMBEDDINGS_NPY_PATH = os.path.join(BASE_DIR, "rag_embeddings.npy")
+# Tokenizer (shared)
+tokenizer = AutoTokenizer.from_pretrained(LLM_MODEL_NAME)
+tokenizer.pad_token = tokenizer.eos_token
+tokenizer.padding_side = "right"
 
-# ✅ Model identifiers
-EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
-LLM_MODEL_NAME = "NousResearch/Hermes-2-Pro-Mistral-7B"
+# Language Model (shared)
+rag_model = AutoModelForCausalLM.from_pretrained(
+    LLM_MODEL_NAME,
+    torch_dtype=torch.float16,
+    device_map="auto",
+    trust_remote_code=True
+)
 
-# ✅ Load embedding model globally
+__all__ = ["tokenizer", "rag_model"]
+
+# ============================
+# 3. GLOBAL EMBEDDING MODEL
+# ============================
+
 try:
     embed_model = SentenceTransformer(EMBEDDING_MODEL_NAME)
     embed_model = embed_model.to(DEVICE)
@@ -136,24 +172,6 @@ except Exception as e:
     logging.error(f"❌ Failed to load embedding model: {e}")
     embed_model = None
 
-
-# ============================
-# 3. EMBEDDING MODEL LOAD
-# ============================
-
-from sentence_transformers import SentenceTransformer
-
-# Set device for embedding model (defaults to CUDA if available)
-EMBED_DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
-
-# Load the embedding model globally for context retrieval and FAISS
-try:
-    embed_model = SentenceTransformer(EMBEDDING_MODEL_NAME, device=EMBED_DEVICE)
-    globals()["embed_model"] = embed_model  # Ensure accessible across functions
-    logging.info(f"✅ Loaded embedding model '{EMBEDDING_MODEL_NAME}' on device: {EMBED_DEVICE}")
-except Exception as e:
-    logging.error(f"❌ Failed to load embedding model '{EMBEDDING_MODEL_NAME}': {e}")
-    embed_model = None
 
 # ============================
 # 4. UTILITIES
@@ -645,6 +663,7 @@ def evaluate_on_examples(model, tokenizer, sample_questions, save_path="eval_out
         print(f"📁 Evaluation results saved to: {save_path}")
     except Exception as e:
         logging.error(f"❌ Failed to save evaluation results: {e}")
+
 # ============================
 # 10A. BUILD FAISS INDEX
 # ============================
@@ -672,23 +691,56 @@ def build_faiss_index_from_training_dir(training_dir):
             valid = [c for c in chunks if is_valid_chunk(c)]
             all_chunks.extend(valid)
 
+    if not all_chunks:
+        raise ValueError("❌ No valid chunks found in training materials!")
+
     embeddings = embed_model.encode(all_chunks, show_progress_bar=True)
     index = faiss.IndexFlatL2(embeddings.shape[1])
     index.add(np.array(embeddings))
 
+    os.makedirs(os.path.dirname(FAISS_INDEX_PATH), exist_ok=True)
     with open(CHUNKS_PKL_PATH, "wb") as f:
         pickle.dump(all_chunks, f)
     np.save(EMBEDDINGS_NPY_PATH, embeddings)
     faiss.write_index(index, FAISS_INDEX_PATH)
 
-    print(f"✅ Built FAISS index with {len(all_chunks)} chunks")
+    logging.info(f"✅ Built FAISS index with {len(all_chunks)} chunks")
+
 # ============================
-# 10. MAIN EXECUTION — CLEAN GPU VERSION
+# 10B. LOAD FAISS RESOURCES
 # ============================
 
-if __name__ == "__main__":
+def load_rag_resources():
+    """
+    Loads FAISS index, chunks, and embeddings into global memory.
+    Builds index from scratch if missing or corrupted.
+    """
+    global rag_chunks, rag_embeddings, faiss_index
+
+    try:
+        with open(CHUNKS_PKL_PATH, "rb") as f:
+            rag_chunks = pickle.load(f)
+        rag_embeddings = np.load(EMBEDDINGS_NPY_PATH)
+        faiss_index = faiss.read_index(FAISS_INDEX_PATH)
+        logging.info(f"✅ Loaded FAISS index and {len(rag_chunks)} chunks")
+
+    except Exception as e:
+        logging.warning(f"⚠️ FAISS loading failed: {e}")
+        logging.info("🔧 Rebuilding FAISS index from training materials...")
+        build_faiss_index_from_training_dir(TRAINING_DATA_DIR)
+
+        with open(CHUNKS_PKL_PATH, "rb") as f:
+            rag_chunks = pickle.load(f)
+        rag_embeddings = np.load(EMBEDDINGS_NPY_PATH)
+        faiss_index = faiss.read_index(FAISS_INDEX_PATH)
+        logging.info(f"✅ Successfully rebuilt FAISS index")
+
+# ============================
+# 10C. MAIN EXECUTION (CLI MODE)
+# ============================
+def main():
     global rag_model, faiss_index, rag_chunks, rag_embeddings
-    rag_model = None
+    rag_model = rag_model  # Already loaded globally
     faiss_index = None
     rag_chunks = []
     rag_embeddings = np.array([])
@@ -714,47 +766,15 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    # Load tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(LLM_MODEL_NAME)
-    tokenizer.pad_token = tokenizer.eos_token
-    tokenizer.padding_side = "right"
+    model = rag_model  # ✅ Use global model
+    load_rag_resources()
 
-    # Load full-precision model (no quantization, no LoRA)
-    model = AutoModelForCausalLM.from_pretrained(
-        LLM_MODEL_NAME,
-        torch_dtype=torch.float16,
-        device_map="auto",
-        trust_remote_code=True
-    )
-
-    # 🔧 Build FAISS index if missing
-    if not os.path.exists(FAISS_INDEX_PATH) or not os.path.exists(CHUNKS_PKL_PATH) or not os.path.exists(EMBEDDINGS_NPY_PATH):
-        print("⚙️ FAISS resources not found. Building from training materials...")
-        build_faiss_index_from_training_dir(TRAINING_DATA_DIR)
-
-    # Load RAG resources
-    try:
-        with open(CHUNKS_PKL_PATH, "rb") as f:
-            rag_chunks = pickle.load(f)
-        rag_embeddings = np.load(EMBEDDINGS_NPY_PATH)
-        faiss_index = faiss.read_index(FAISS_INDEX_PATH)
-        logging.info(f"✅ Loaded FAISS index and {len(rag_chunks)} chunks")
-    except Exception as e:
-        logging.error(f"❌ Failed to load FAISS resources: {e}")
-        rag_chunks = []
-        rag_embeddings = np.array([])
-        faiss_index = None
-
-    rag_model = model  # use the model for answering
-
-    # Sample questions
     sample_questions = [
         "How is a DIEP flap performed?",
         "What are the recommended closure techniques for the donor site following a DIEP flap procedure?",
         "What are the key anatomical landmarks and vascular considerations when injecting filler into the nasolabial folds?"
     ]
 
-    # Evaluate
     evaluate_on_examples(
         model=model,
         tokenizer=tokenizer,
@@ -763,37 +783,31 @@ if __name__ == "__main__":
         k=3
     )
 
-# ✅ Launch interactive chatbot REPL
-print("🩺 RAG Chatbot Ready. Ask your surgical question or type 'exit' to quit.")
-try:
-    while True:
-        user_question = input("You: ").strip()
-        if user_question.lower() in {"exit", "quit"}:
-            print("👋 Goodbye!")
-            break
-        if not user_question:
-            continue  # Skip empty inputs
-
-        context_chunks = retrieve_context(user_question)
-        answer = generate_rag_answer_with_context(
-            user_question=user_question,
-            context_chunks=context_chunks,
-            mistral_tokenizer=tokenizer,
-            mistral_model=model
-        )
-        print("Bot:", answer)
-except (KeyboardInterrupt, EOFError):
-    print("\n👋 Exiting chatbot.")
-
-    # Launch chatbot
     print("🩺 RAG Chatbot Ready. Ask your surgical question or type 'exit' to quit.")
     try:
         while True:
-            user_question = input("You: ")
-            if user_question.strip().lower() in {"exit", "quit"}:
+            user_question = input("You: ").strip()
+            if user_question.lower() in {"exit", "quit"}:
+                print("👋 Goodbye!")
                 break
+            if not user_question:
+                continue
+
             context_chunks = retrieve_context(user_question)
-            answer = generate_rag_answer_with_context(user_question, context_chunks, tokenizer, model)
+            answer = generate_rag_answer_with_context(
+                user_question=user_question,
+                context_chunks=context_chunks,
+                mistral_tokenizer=tokenizer,
+                mistral_model=model
+            )
             print("Bot:", answer)
     except (KeyboardInterrupt, EOFError):
-        print("\n👋 Exiting chatbot. Goodbye.")
+        print("\n👋 Exiting chatbot.")
+
+
+# ============================
+# 10D. ENTRYPOINT
+# ============================
+
+if __name__ == "__main__":
+    main()
