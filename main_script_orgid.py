@@ -466,7 +466,6 @@ def fine_tune_with_trainer(
     print("💾 Saving model and tokenizer to:", output_dir)
     trainer.save_model(output_dir)
     tokenizer.save_pretrained(output_dir)
-
 # ============================
 # 10. RETRIEVAL FUNCTION — FIXED
 # ============================
@@ -490,24 +489,44 @@ def retrieve_context(query, k=3, initial_k=10, org_id=None, collab=False):
     rag_chunks = ORG_CHUNKS.get(org_id)
     rag_embeddings = ORG_EMBEDDINGS.get(org_id)
 
-    if not faiss_index or not rag_chunks or not rag_embeddings:
+    if (
+        faiss_index is None or
+        rag_chunks is None or len(rag_chunks) == 0 or
+        rag_embeddings is None or len(rag_embeddings) == 0
+    ):
         raise ValueError(f"❌ FAISS data for org_id '{org_id}' not loaded.")
 
     try:
-        query_embedding = embed_model.encode(query, convert_to_tensor=True).cpu().numpy().reshape(1, -1)
+        # Encode query
+        query_embedding = embed_model.encode(
+            query,
+            convert_to_tensor=True
+        ).cpu().numpy().reshape(1, -1)
+
+        # Search in FAISS index
         D, I = faiss_index.search(query_embedding, initial_k)
+
+        # Retrieve candidate chunks and embeddings
         candidate_chunks = [rag_chunks[i] for i in I[0]]
         candidate_embeddings = [rag_embeddings[i] for i in I[0]]
 
+        # Compute cosine similarity
+        from sklearn.metrics.pairwise import cosine_similarity
         scores = cosine_similarity(query_embedding, candidate_embeddings)[0]
-        ranked = sorted(zip(candidate_chunks, scores), key=lambda x: x[1], reverse=True)
 
+        # Rank candidates by similarity
+        ranked = sorted(
+            zip(candidate_chunks, scores),
+            key=lambda x: x[1],
+            reverse=True
+        )
+
+        # Return top-k chunks
         return [chunk for chunk, _ in ranked[:k]]
 
     except Exception as e:
         logging.error(f"❌ Failed to retrieve context: {e}")
         return []
-
 
 # ============================
 # 11. RAG GENERATION — FIXED
