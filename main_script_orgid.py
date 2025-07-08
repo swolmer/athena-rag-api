@@ -76,7 +76,7 @@ else:
     print("⚠️ No CUDA-compatible GPU detected. Training will run on CPU.")
 
 # ============================
-# 🧠 GLOBAL ORG-SPECIFIC STORAGE
+# 🧠 2. GLOBAL ORG-SPECIFIC STORAGE
 # ============================
 
 # These store model data per organization
@@ -89,7 +89,7 @@ tokenizer = None
 rag_model = None
 embed_model = None
 # ============================
-# 🛠️ 2. CONFIGURATION — COLLAB READY
+# 🛠️ 3. CONFIGURATION — COLLAB READY
 # ============================
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -119,7 +119,7 @@ else:
     print("⚠️ CUDA not available — using CPU")
 
 # ============================
-# 📁 ORG PATH HELPER
+# 📁 4. ORG PATH HELPER
 # ============================
 
 def get_org_paths(org_id):
@@ -139,7 +139,7 @@ def get_org_paths(org_id):
     }
 
 # ============================
-# 2B. GLOBAL TOKENIZER & MODEL
+# 5. GLOBAL TOKENIZER & MODEL
 # ============================
 
 from transformers import AutoTokenizer, AutoModelForCausalLM
@@ -160,7 +160,7 @@ rag_model = AutoModelForCausalLM.from_pretrained(
 __all__ = ["tokenizer", "rag_model"]
 
 # ============================
-# 3. GLOBAL EMBEDDING MODEL
+# 6. GLOBAL EMBEDDING MODEL
 # ============================
 
 try:
@@ -174,7 +174,7 @@ except Exception as e:
 
 
 # ============================
-# 4. UTILITIES
+# 7. UTILITIES
 # ============================
 
 def is_valid_chunk(text):
@@ -302,7 +302,7 @@ def load_training_materials(training_dir, max_words=800):
     return pd.DataFrame(data)
 
 # ============================
-# 5. DATASET CLASS
+# 8. DATASET CLASS
 # ============================
 
 class MistralQADataset(Dataset):
@@ -378,7 +378,7 @@ class MistralQADataset(Dataset):
         }
 
 # ============================
-# 6. TRAINING
+# 9. TRAINING
 # ============================
 
 from transformers import default_data_collator
@@ -468,7 +468,7 @@ def fine_tune_with_trainer(
     tokenizer.save_pretrained(output_dir)
 
 # ============================
-# 7. RETRIEVAL FUNCTION — FIXED
+# 10. RETRIEVAL FUNCTION — FIXED
 # ============================
 
 def retrieve_context(query, k=3, initial_k=10, org_id=None, collab=False):
@@ -510,7 +510,7 @@ def retrieve_context(query, k=3, initial_k=10, org_id=None, collab=False):
 
 
 # ============================
-# 8. RAG GENERATION — FIXED
+# 11. RAG GENERATION — FIXED
 # ============================
 
 def generate_rag_answer_with_context(user_question, context_chunks, mistral_tokenizer, mistral_model):
@@ -574,7 +574,7 @@ def generate_rag_answer_with_context(user_question, context_chunks, mistral_toke
 
     return answer
 # ============================
-# 9. EVALUATION FUNCTION — FIXED
+# 12. EVALUATION FUNCTION — FIXED
 # ============================
 
 def token_overlap_score(answer: str, context: str) -> float:
@@ -655,8 +655,65 @@ def evaluate_on_examples(model, tokenizer, sample_questions, save_path="eval_out
         print(f"📁 Evaluation results saved to: {save_path}")
     except Exception as e:
         logging.error(f"❌ Failed to save evaluation results: {e}")
+
 # ============================
-# 🔨 10A. BUILD FAISS INDEX FOR ONE ORG
+# 📦 13. ZIP FILE HANDLER (UPLOAD + INDEX)
+# ============================
+
+import zipfile
+import shutil
+
+def handle_uploaded_zip(zip_path, org_id):
+    """
+    Handles a ZIP upload:
+    - Extracts to org's training folder
+    - Builds FAISS index from the contents
+    - Loads index into memory for RAG retrieval
+    """
+    paths = get_org_paths(org_id)
+    training_dir = paths["training_data_dir"]
+
+    # 🧹 Clean old training data (optional safety)
+    if os.path.exists(training_dir):
+        shutil.rmtree(training_dir)
+    os.makedirs(training_dir, exist_ok=True)
+
+    # 📂 Unzip to training directory
+    try:
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(training_dir)
+        logging.info(f"✅ Extracted ZIP to: {training_dir}")
+    except Exception as e:
+        logging.error(f"❌ Failed to extract ZIP: {e}")
+        return
+
+    # 🔨 Build and load FAISS index
+    try:
+        build_faiss_index_from_training_dir(org_id)
+        load_faiss_into_memory(org_id)
+        logging.info(f"✅ ZIP upload + indexing complete for org '{org_id}'")
+    except Exception as e:
+        logging.error(f"❌ Failed to build/load FAISS after upload: {e}")
+
+
+def load_faiss_into_memory(org_id):
+    """
+    Loads the org-specific index/chunks/embeddings into the global lookup dicts.
+    This makes RAG work immediately after ZIP upload.
+    """
+    paths = get_org_paths(org_id)
+    try:
+        with open(paths["chunks_pkl"], "rb") as f:
+            ORG_CHUNKS[org_id] = pickle.load(f)
+        ORG_EMBEDDINGS[org_id] = np.load(paths["embeddings_npy"])
+        ORG_FAISS_INDEXES[org_id] = faiss.read_index(paths["faiss_index"])
+        logging.info(f"✅ FAISS memory loaded for org '{org_id}'")
+    except Exception as e:
+        logging.error(f"❌ Failed to load FAISS into memor
+
+
+# ============================
+# 🔨 14. BUILD FAISS INDEX FOR ONE ORG
 # ============================
 
 def build_faiss_index_from_training_dir(org_id):
@@ -702,7 +759,7 @@ def build_faiss_index_from_training_dir(org_id):
     logging.info(f"✅ FAISS index built for org '{org_id}' with {len(all_chunks)} chunks")
 
 # ============================
-# 📥 10B. LOAD FAISS FOR ONE ORG
+# 📥 15. LOAD FAISS FOR ONE ORG
 # ============================
 
 def load_rag_resources(org_id):
@@ -733,7 +790,7 @@ def load_rag_resources(org_id):
 
 
 # ============================
-# 10C. MAIN EXECUTION (CLI MODE)
+# 16. MAIN EXECUTION (CLI MODE)
 # ============================
 def main():
     global rag_model, faiss_index, rag_chunks, rag_embeddings
@@ -801,9 +858,48 @@ def main():
     except (KeyboardInterrupt, EOFError):
         print("\n👋 Exiting chatbot.")
 
+# ============================
+# 17. UPLOAD & INDEX MATERIALS (ORG-AWARE)
+# ============================
+
+import zipfile
+import shutil
+
+def handle_uploaded_zip(zip_path: str, org_id: str):
+    """
+    Accepts a ZIP file path and an org_id.
+    Extracts contents to org's training directory and builds FAISS index.
+    """
+    try:
+        # Step 1: Get paths for the org
+        paths = get_org_paths(org_id)
+        training_dir = paths["training_data_dir"]
+
+        # Step 2: Clear old training data
+        if os.path.exists(training_dir):
+            shutil.rmtree(training_dir)
+        os.makedirs(training_dir, exist_ok=True)
+
+        # Step 3: Extract ZIP contents
+        with zipfile.ZipFile(zip_path, 'r') as zip_ref:
+            zip_ref.extractall(training_dir)
+        logging.info(f"✅ Extracted ZIP for org '{org_id}' to: {training_dir}")
+
+        # Step 4: Build FAISS
+        build_faiss_index_from_training_dir(org_id)
+
+        # Step 5: Reload into memory
+        load_rag_resources(org_id)
+
+        logging.info(f"🎉 Upload and indexing complete for org '{org_id}'")
+
+    except Exception as e:
+        logging.error(f"❌ Failed to process uploaded ZIP for org '{org_id}': {e}")
+        raise
+
 
 # ============================
-# 10D. ENTRYPOINT
+# 18. ENTRYPOINT
 # ============================
 
 if __name__ == "__main__":
