@@ -588,7 +588,7 @@ def token_overlap_score(answer: str, context: str) -> float:
     return len(overlap) / max(1, len(answer_tokens))
 
 
-def evaluate_on_examples(model, tokenizer, sample_questions, save_path="eval_outputs.json", k=3):
+def evaluate_on_examples(model, tokenizer, sample_questions, save_path="eval_outputs.json", k=3, org_id=None):
     """
     Evaluates the RAG chatbot on a list of questions using retrieved context and overlap scoring.
     Saves structured results to a JSON file.
@@ -599,6 +599,7 @@ def evaluate_on_examples(model, tokenizer, sample_questions, save_path="eval_out
     - sample_questions (list of str): Questions to evaluate
     - save_path (str): Where to store the evaluation output
     - k (int): Number of chunks to retrieve
+    - org_id (str): Organization ID for selecting the correct FAISS index and training data
     """
     global rag_model, faiss_index, rag_chunks, rag_embeddings  # required globals
 
@@ -609,7 +610,7 @@ def evaluate_on_examples(model, tokenizer, sample_questions, save_path="eval_out
 
         try:
             # Step 1: Retrieve top-k chunks
-            context_chunks = retrieve_context(question, k=k)
+            context_chunks = retrieve_context(query=question, k=k, org_id=org_id)
             context_combined = " ".join(context_chunks)
 
             # Step 2: Generate answer from model
@@ -655,6 +656,91 @@ def evaluate_on_examples(model, tokenizer, sample_questions, save_path="eval_out
         print(f"📁 Evaluation results saved to: {save_path}")
     except Exception as e:
         logging.error(f"❌ Failed to save evaluation results: {e}")
+
+# ============================
+# 12. EVALUATION FUNCTION — FIXED
+# ============================
+
+def token_overlap_score(answer: str, context: str) -> float:
+    """
+    Calculates token-level overlap between answer and context for hallucination risk estimation.
+    """
+    import re
+    answer_tokens = set(re.findall(r"\b\w+\b", answer.lower()))
+    context_tokens = set(re.findall(r"\b\w+\b", context.lower()))
+    overlap = answer_tokens & context_tokens
+    return len(overlap) / max(1, len(answer_tokens))
+
+
+def evaluate_on_examples(model, tokenizer, sample_questions, save_path="eval_outputs.json", k=3, org_id=None):
+    """
+    Evaluates the RAG chatbot on a list of questions using retrieved context and overlap scoring.
+    Saves structured results to a JSON file.
+
+    Parameters:
+    - model: Hugging Face language model (Mistral or similar)
+    - tokenizer: Corresponding tokenizer
+    - sample_questions (list of str): Questions to evaluate
+    - save_path (str): Where to store the evaluation output
+    - k (int): Number of chunks to retrieve
+    - org_id (str): Organization ID for selecting the correct FAISS index and training data
+    """
+    global rag_model, faiss_index, rag_chunks, rag_embeddings  # required globals
+
+    outputs = []
+
+    for idx, question in enumerate(sample_questions, 1):
+        print(f"\n🔹 Question {idx}/{len(sample_questions)}: {question}")
+
+        try:
+            # Step 1: Retrieve top-k chunks
+            context_chunks = retrieve_context(query=question, k=k, org_id=org_id)
+            context_combined = " ".join(context_chunks)
+
+            # Step 2: Generate answer from model
+            answer = generate_rag_answer_with_context(
+                user_question=question,
+                context_chunks=context_chunks,
+                mistral_tokenizer=tokenizer,
+                mistral_model=model
+            )
+
+            # Step 3: Compute token overlap
+            overlap_score = token_overlap_score(answer, context_combined)
+            hallucinated = overlap_score < 0.35
+
+            if hallucinated:
+                logging.warning(f"⚠️ Token Overlap = {overlap_score:.2f} — potential hallucination.")
+                answer = "⚠️ Unable to generate a confident answer from the available context."
+
+            print("✅ Answer:", answer)
+
+            outputs.append({
+                "question": question,
+                "context_chunks": context_chunks,
+                "answer": answer,
+                "overlap_score": round(overlap_score, 3),
+                "hallucination_flag": hallucinated
+            })
+
+        except Exception as e:
+            logging.error(f"❌ Error generating answer for question {idx}: {e}")
+            outputs.append({
+                "question": question,
+                "context_chunks": [],
+                "answer": f"Error: {e}",
+                "overlap_score": None,
+                "hallucination_flag": True
+            })
+
+    # Save evaluation results
+    try:
+        with open(save_path, "w", encoding="utf-8") as f:
+            json.dump(outputs, f, indent=2)
+        print(f"📁 Evaluation results saved to: {save_path}")
+    except Exception as e:
+        logging.error(f"❌ Failed to save evaluation results: {e}")
+
 
 # ============================
 # 📦 13. ZIP FILE HANDLER (UPLOAD + INDEX)
@@ -709,7 +795,7 @@ def load_faiss_into_memory(org_id):
         ORG_FAISS_INDEXES[org_id] = faiss.read_index(paths["faiss_index"])
         logging.info(f"✅ FAISS memory loaded for org '{org_id}'")
     except Exception as e:
-        logging.error(f"❌ Failed to load FAISS into memor
+        logging.error(f"❌ Failed to load FAISS into memory for org '{org_id}'")
 
 
 # ============================
@@ -787,23 +873,28 @@ def load_rag_resources(org_id):
         rag_embeddings = np.load(paths["embeddings_npy"])
         faiss_index = faiss.read_index(paths["faiss_index"])
         logging.info(f"✅ Rebuilt FAISS index for org '{org_id}'")
-
-
 # ============================
 # 16. MAIN EXECUTION (CLI MODE)
 # ============================
+
 def main():
     global rag_model, faiss_index, rag_chunks, rag_embeddings
-    rag_model = rag_model  # Already loaded globally
-    faiss_index = None
-    rag_chunks = []
-    rag_embeddings = np.array([])
 
     print("🧠 Checking CUDA support:")
     print("CUDA Available:", torch.cuda.is_available())
     if torch.cuda.is_available():
         print("CUDA Device Name:", torch.cuda.get_device_name(0))
+
     print("🚀 Script has started running...")
+
+    # --- Org-specific setup ---
+    org_id = "emory"
+    load_rag_resources(org_id)
+
+    # ✅ Register org data into global storage
+    ORG_FAISS_INDEXES[org_id] = faiss_index
+    ORG_CHUNKS[org_id] = rag_chunks
+    ORG_EMBEDDINGS[org_id] = rag_embeddings
 
     parser = argparse.ArgumentParser(description="Run RAG chatbot")
     parser.add_argument(
@@ -815,14 +906,14 @@ def main():
     parser.add_argument(
         '--output_dir',
         type=str,
-        default=os.path.join(MODEL_DIR, "mistral-full-out"),
+        default=os.path.join(BASE_DIR, "Models", "mistral-full-out"),
         help="Directory to save the model (if fine-tuning)"
     )
     args = parser.parse_args()
 
     model = rag_model  # ✅ Use global model
-    load_rag_resources()
 
+    # --- Run evaluation ---
     sample_questions = [
         "How is a DIEP flap performed?",
         "What are the recommended closure techniques for the donor site following a DIEP flap procedure?",
@@ -834,9 +925,11 @@ def main():
         tokenizer=tokenizer,
         sample_questions=sample_questions,
         save_path=os.path.join(BASE_DIR, "eval_outputs.json"),
-        k=3
+        k=3,
+        org_id=org_id
     )
 
+    # --- Start chatbot loop ---
     print("🩺 RAG Chatbot Ready. Ask your surgical question or type 'exit' to quit.")
     try:
         while True:
@@ -847,7 +940,7 @@ def main():
             if not user_question:
                 continue
 
-            context_chunks = retrieve_context(user_question)
+            context_chunks = retrieve_context(user_question, org_id=org_id)
             answer = generate_rag_answer_with_context(
                 user_question=user_question,
                 context_chunks=context_chunks,
@@ -857,6 +950,7 @@ def main():
             print("Bot:", answer)
     except (KeyboardInterrupt, EOFError):
         print("\n👋 Exiting chatbot.")
+
 
 # ============================
 # 17. UPLOAD & INDEX MATERIALS (ORG-AWARE)
@@ -894,8 +988,7 @@ def handle_uploaded_zip(zip_path: str, org_id: str):
         logging.info(f"🎉 Upload and indexing complete for org '{org_id}'")
 
     except Exception as e:
-        logging.error(f"❌ Failed to process uploaded ZIP for org '{org_id}': {e}")
-        raise
+       logging.error(f"❌ Failed to load FAISS into memory for org '{org_id}'")
 
 
 # ============================
