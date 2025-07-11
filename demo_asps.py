@@ -1022,7 +1022,7 @@ def main():
                 mistral_tokenizer=tokenizer,
                 mistral_model=model
             )
-            print("Bot:", answer)s
+            print("Bot:", answer)
 
     except (KeyboardInterrupt, EOFError):
         print("\n👋 Chatbot terminated.")
