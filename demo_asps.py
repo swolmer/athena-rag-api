@@ -174,14 +174,14 @@ try:
 except Exception as e:
     logging.error(f"❌ Failed to load embedding model: {e}")
     embed_model = None
-    # ============================
-# 7. UTILITIES — ENHANCED (PDF OPTION)
+
+# ============================
+# 7. UTILITIES — ENHANCED (HTML-ONLY)
 # ============================
 
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
-import pdfkit
 
 def is_valid_chunk(text):
     text_lower = text.lower()
@@ -232,11 +232,11 @@ def chunk_text_by_words(text, max_words=200, overlap=50, min_words=30):
 
     return chunks
 
-def download_asps_subpages_as_pdfs(pdf_dir="org_data/asps/html_pdfs"):
+def download_asps_subpages_as_html(html_dir="org_data/asps/html_pages"):
     """
-    Downloads each ASPS cosmetic procedure page as a rendered PDF using pdfkit.
+    Downloads each ASPS cosmetic procedure page as raw HTML files.
     """
-    os.makedirs(pdf_dir, exist_ok=True)
+    os.makedirs(html_dir, exist_ok=True)
     root_url = "https://www.plasticsurgery.org/cosmetic-procedures"
 
     try:
@@ -254,44 +254,54 @@ def download_asps_subpages_as_pdfs(pdf_dir="org_data/asps/html_pdfs"):
 
         for url in sorted(sub_urls):
             slug = url.split("/")[-1].strip()
-            filepath = os.path.join(pdf_dir, f"{slug}.pdf")
+            filepath = os.path.join(html_dir, f"{slug}.html")
             try:
-                pdfkit.from_url(url, filepath)
-                logging.info(f"✅ PDF saved: {filepath}")
+                page_resp = requests.get(url)
+                page_resp.raise_for_status()
+                with open(filepath, "w", encoding="utf-8") as f:
+                    f.write(page_resp.text)
+                logging.info(f"✅ HTML saved: {filepath}")
             except Exception as e:
-                logging.warning(f"⚠️ Failed to render {url} as PDF: {e}")
+                logging.warning(f"⚠️ Failed to download or save {url} as HTML: {e}")
 
     except Exception as e:
         logging.error(f"❌ Failed to access ASPS page: {e}")
 
-def extract_text_from_pdf(pdf_path):
+def extract_text_from_html(html_path):
     """
-    Extracts text from all pages of a PDF file.
+    Extracts meaningful text from an HTML file (mainly paragraphs inside <main> tag).
     """
     try:
-        with fitz.open(pdf_path) as pdf:
-            return "".join([page.get_text() for page in pdf])
+        with open(html_path, "r", encoding="utf-8") as f:
+            soup = BeautifulSoup(f.read(), "html.parser")
+            paragraphs = soup.select("main p")
+            text_blocks = [
+                p.get_text(separator=" ", strip=True)
+                for p in paragraphs
+                if len(p.get_text(strip=True).split()) > 20
+            ]
+            return "\n\n".join(text_blocks)
     except Exception as e:
-        logging.error(f"❌ PDF extraction failed for {pdf_path}: {e}")
+        logging.error(f"❌ HTML extraction failed for {html_path}: {e}")
         return ""
 
-def extract_all_text_from_asps_pdfs(pdf_dir="org_data/asps/html_pdfs"):
+def extract_all_text_from_asps_html(html_dir="org_data/asps/html_pages"):
     """
-    Goes through all ASPS PDFs and extracts text.
+    Goes through all ASPS HTML files and extracts combined text.
     """
-    if not os.path.exists(pdf_dir):
-        raise ValueError(f"❌ PDF directory not found: {pdf_dir}")
+    if not os.path.exists(html_dir):
+        raise ValueError(f"❌ HTML directory not found: {html_dir}")
 
     all_text = ""
-    for file in os.listdir(pdf_dir):
-        if not file.endswith(".pdf"):
+    for file in os.listdir(html_dir):
+        if not file.endswith(".html"):
             continue
-        full_path = os.path.join(pdf_dir, file)
-        pdf_text = extract_text_from_pdf(full_path)
-        if pdf_text.strip():
-            all_text += "\n\n" + pdf_text
+        full_path = os.path.join(html_dir, file)
+        html_text = extract_text_from_html(full_path)
+        if html_text.strip():
+            all_text += "\n\n" + html_text
         else:
-            logging.warning(f"⚠️ Empty or unreadable PDF: {file}")
+            logging.warning(f"⚠️ Empty or unreadable HTML: {file}")
 
     return all_text
 
@@ -794,9 +804,8 @@ def handle_uploaded_zip(zip_path, org_id):
     except Exception as e:
         logging.error(f"❌ Failed to build/load FAISS after upload: {e}")
         logging.error(f"❌ Failed to load FAISS into memory for org '{org_id}'")
+
 # ============================
-# 📥 14. Build FAISS Index
-# ============================# ============================
 # 📥 14. Build FAISS Index
 # ============================
 
