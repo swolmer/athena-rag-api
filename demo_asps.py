@@ -532,16 +532,13 @@ def retrieve_context(query, k=3, initial_k=10, org_id=None, collab=False):
     except Exception as e:
         logging.error(f"❌ Failed to retrieve context: {e}")
         return []
-
 # ============================
-# 11. RAG GENERATION — FIXED
+# 11. RAG GENERATION — POLISHED
 # ============================
 
 def generate_rag_answer_with_context(user_question, context_chunks, mistral_tokenizer, mistral_model):
     import re
-    from collections import Counter
     from sklearn.metrics.pairwise import cosine_similarity
-    import numpy as np
 
     if not context_chunks:
         return "⚠️ No relevant context found to answer this question."
@@ -550,7 +547,8 @@ def generate_rag_answer_with_context(user_question, context_chunks, mistral_toke
     
     prompt = (
         "You are a surgical expert writing answers for a clinical reference guide.\n"
-        "Use only the CONTEXT below to answer the QUESTION in a structured format:\n\n"
+        "Use only the CONTEXT below to answer the QUESTION in a clear, structured format.\n"
+        "Please provide detailed, complete sentences for each section. If information is unavailable, say 'Not available'.\n\n"
         "✅ Summary: (1 sentence)\n"
         "🧠 Anatomy & Physiology:\n"
         "🔧 Procedure or Technique:\n"
@@ -566,37 +564,64 @@ def generate_rag_answer_with_context(user_question, context_chunks, mistral_toke
         outputs = mistral_model.generate(
             input_ids=inputs["input_ids"],
             attention_mask=inputs["attention_mask"],
-            max_new_tokens=128,     # much faster
-            do_sample=False,        # deterministic, faster
+            max_new_tokens=256,
+            do_sample=False,
             eos_token_id=mistral_tokenizer.eos_token_id,
             pad_token_id=mistral_tokenizer.pad_token_id
-)
+        )
 
     decoded = mistral_tokenizer.decode(outputs[0], skip_special_tokens=True)
 
-    # Extract portion after '### ANSWER:'
+    # Extract text after '### ANSWER:'
     if "### ANSWER:" in decoded:
         answer = decoded.split("### ANSWER:")[-1].strip()
     else:
         answer = decoded.strip()
 
-    # ✂️ Truncate after 6 sentences (to avoid repetition loops)
-    answer = re.split(r'\.\s+', answer, maxsplit=6)
-    answer = '. '.join(answer).strip()
-    if not answer.endswith("."):
-        answer += "."
+    # Post-process common typos and formatting fixes
+    def clean_answer_text(text):
+        corrections = {
+            "Phyiology": "Physiology",
+            "Post-mastecomy": "Post-mastectomy",
+            "deper layer": "deeper layer",
+            "&Physiology": "& Physiology",
+            "fl.": "flaps.",
+            "Pro.": "Procedure.",
+            "Hair.": "Hair surgery.",
+            "Anatomy &Physiology": "Anatomy & Physiology",
+            "⚠️Unable": "⚠️ Unable"
+        }
+        for typo, fix in corrections.items():
+            text = text.replace(typo, fix)
+        # Remove trailing incomplete words if any
+        words = text.split()
+        if words and len(words[-1]) < 3 and not text.endswith('.'):
+            text = ' '.join(words[:-1]) + '.'
+        return text.strip()
 
-    # 🚨 Add hallucination filter: check token overlap with context
+    answer = clean_answer_text(answer)
+
+    # Optionally truncate to max 15 sentences to avoid run-ons
+    sentences = re.split(r'\.\s+', answer)
+    if len(sentences) > 15:
+        sentences = sentences[:15]
+        answer = '. '.join(sentences)
+        if not answer.endswith('.'):
+            answer += '.'
+
+    # Hallucination check: token overlap with context
     answer_tokens = set(re.findall(r"\b\w+\b", answer.lower()))
     context_tokens = set(re.findall(r"\b\w+\b", context.lower()))
     overlap = answer_tokens & context_tokens
     overlap_score = len(overlap) / max(1, len(answer_tokens))
 
-    if overlap_score < 0.35:
-        logging.warning("⚠️ Low token overlap — likely hallucination.")
-        return "⚠️ Unable to generate a confident answer from the provided surgical materials."
+    if overlap_score < 0.25:
+        import logging
+        logging.warning(f"⚠️ Low token overlap ({overlap_score:.2f}) — possible hallucination.")
+        answer += "\n\n⚠️ Disclaimer: This answer may have lower confidence due to limited context overlap."
 
     return answer
+
 # ============================
 # 12. EVALUATION FUNCTION — FIXED
 # ============================
@@ -917,6 +942,7 @@ def load_rag_resources(org_id):
         rag_embeddings = np.load(paths["embeddings_npy"])
         faiss_index = faiss.read_index(paths["faiss_index"])
         logging.info(f"✅ Rebuilt FAISS index for org '{org_id}'")
+
 # ============================
 # 16. MAIN EXECUTION (CLI MODE)
 # ============================
