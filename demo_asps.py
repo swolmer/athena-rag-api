@@ -921,6 +921,8 @@ def load_rag_resources(org_id):
 # 16. MAIN EXECUTION (CLI MODE)
 # ============================
 
+from asps_scraper import get_asps_procedure_links, download_all_subpages
+
 def main():
     global rag_model, faiss_index, rag_chunks, rag_embeddings
 
@@ -935,13 +937,21 @@ def main():
     org_id = "asps"
 
     try:
-        # 🌐 Scrape ASPS and build FAISS index
+        # Step 1: Scrape ASPS procedure links
+        links = get_asps_procedure_links()
+        if not links:
+            raise RuntimeError("No ASPS procedure links found")
+
+        # Step 2: Download HTML pages locally
+        download_all_subpages(links)
+
+        # Step 3: Build FAISS index from downloaded HTML pages
         build_faiss_index_from_training_dir(org_id)
 
-        # 💾 Load FAISS + chunks into memory
+        # Step 4: Load FAISS + chunks into memory
         load_rag_resources(org_id)
 
-        # 🔗 Register in global memory
+        # Step 5: Register in global memory
         ORG_FAISS_INDEXES[org_id] = faiss_index
         ORG_CHUNKS[org_id] = rag_chunks
         ORG_EMBEDDINGS[org_id] = rag_embeddings
@@ -1012,11 +1022,10 @@ def main():
                 mistral_tokenizer=tokenizer,
                 mistral_model=model
             )
-            print("Bot:", answer)
+            print("Bot:", answer)s
 
     except (KeyboardInterrupt, EOFError):
         print("\n👋 Chatbot terminated.")
-
 
 # ============================
 # 17. UPLOAD & INDEX MATERIALS (ORG-AWARE)
