@@ -2,8 +2,11 @@
 # 🚀 1. IMPORTS & GLOBAL STORAGE
 # ============================
 
-# --- Standard library ---
 import os
+
+# Set Hugging Face cache directory to a path with enough space on RunPod
+os.environ["HF_HOME"] = "/workspace/huggingface_cache"
+
 import json
 import logging
 import pickle
