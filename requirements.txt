@@ -1,40 +1,61 @@
-# Core ML
+# ===============================
+# 🧠 PyTorch (CUDA 12.1) for Python 3.10+
+# ===============================
 torch==2.1.2+cu121
-torchaudio==2.1.2+cu121
 torchvision==0.16.2+cu121
+torchaudio==2.1.2+cu121
 --extra-index-url https://download.pytorch.org/whl/cu121
 
+# ===============================
+# 🤗 Transformers & HuggingFace
+# ===============================
 transformers==4.38.2
-sentence-transformers==2.2.2
+sentence-transformers==2.6.1
+huggingface_hub==0.22.2
 accelerate==0.28.0
 evaluate==0.4.4
+sentencepiece==0.1.99
+protobuf==3.20.3
 scikit-learn==1.3.2
 
-# FAISS (CPU version)
+# ===============================
+# 🔍 FAISS Vector Search (CPU Version)
+# ===============================
 faiss-cpu==1.7.4
 
-# File parsing
+# ===============================
+# 📄 File Parsing & OCR
+# ===============================
 PyMuPDF==1.26.1
+python-docx==1.2.0
 pytesseract==0.3.10
 pillow==9.5.0
-python-docx==1.2.0
 pdfminer.six==20221105
 
-# Tokenization
-nltk==3.9.1
-protobuf==3.20.3  # Needed for tokenizer to work
+# ===============================
+# 🌐 Web Scraping (ASPS content)
+# ===============================
+beautifulsoup4==4.12.2
+requests==2.31.0
 
-# FastAPI + dev server
+# ===============================
+# 🚀 Optional REST API
+# ===============================
 fastapi==0.100.1
 uvicorn==0.23.2
 
-# Utilities
+# ===============================
+# 🧰 Utilities & Environment
+# ===============================
+nltk==3.9.1
 python-dotenv==1.0.0
 tqdm==4.65.0
 loguru==0.7.2
 pandas==2.1.4
-numpy==1.26.4  # Avoid NumPy 2.x for now to prevent runtime crashes
+numpy==1.26.4
 
-# Optional extras (only if needed)
-regex
-rich
+# ===============================
+# 🛠 Optional Developer Tools
+# ===============================
+regex==2023.12.25
+rich==13.7.0
