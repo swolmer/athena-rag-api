@@ -839,6 +839,18 @@ class QueryResponse(BaseModel):
     context_chunks: list
     org_id: str
 
+class FineTuneRequest(BaseModel):
+    org_id: str
+    epochs: int = 3
+    learning_rate: float = 2e-4
+    batch_size: int = 1
+
+class FineTuneResponse(BaseModel):
+    message: str
+    org_id: str
+    status: str
+    model_path: str
+
 @app.get("/")
 async def root():
     return {"message": "� Athen.ai RAG API is running on RunPod!"}
@@ -932,9 +944,11 @@ async def list_organizations():
                 if os.path.isdir(org_path):
                     paths = get_org_paths(org_dir)
                     has_index = os.path.exists(paths["faiss_index"])
+                    has_model = os.path.exists(paths["model_dir"])
                     orgs.append({
                         "org_id": org_dir,
                         "has_training_data": has_index,
+                        "has_fine_tuned_model": has_model,
                         "status": "ready" if has_index else "needs_training"
                     })
         
@@ -942,6 +956,132 @@ async def list_organizations():
     
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to list orgs: {str(e)}")
+
+@app.post("/fine-tune", response_model=FineTuneResponse)
+async def fine_tune_model(request: FineTuneRequest):
+    """Fine-tune a model for a specific organization"""
+    try:
+        # Check if org has training data
+        if request.org_id not in ORG_FAISS_INDEXES:
+            try:
+                load_faiss_into_memory(request.org_id)
+            except Exception:
+                raise HTTPException(
+                    status_code=404, 
+                    detail=f"No training data found for org '{request.org_id}'. Please upload training materials first."
+                )
+        
+        paths = get_org_paths(request.org_id)
+        
+        # Check if training data exists
+        if not os.path.exists(paths["training_data_dir"]):
+            raise HTTPException(
+                status_code=404,
+                detail=f"No training data directory found for org '{request.org_id}'"
+            )
+        
+        # Create JSONL training file from training materials
+        training_data = load_training_materials(paths["training_data_dir"])
+        
+        if training_data.empty:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No valid training data found for org '{request.org_id}'"
+            )
+        
+        # Convert to JSONL format
+        jsonl_path = os.path.join(paths["base"], "training_data.jsonl")
+        with open(jsonl_path, "w", encoding="utf-8") as f:
+            for _, row in training_data.iterrows():
+                json.dump({
+                    "instruction": row["input"],
+                    "output": row["output"]
+                }, f)
+                f.write("\n")
+        
+        # Create train/eval datasets
+        train_dataset = MistralQADataset(jsonl_path, tokenizer, max_length=512)
+        
+        # Split for evaluation (use 10% for eval)
+        eval_size = max(1, len(train_dataset) // 10)
+        eval_indices = list(range(len(train_dataset)))[-eval_size:]
+        train_indices = list(range(len(train_dataset)))[:-eval_size]
+        
+        from torch.utils.data import Subset
+        train_subset = Subset(train_dataset, train_indices)
+        eval_subset = Subset(train_dataset, eval_indices)
+        
+        # Fine-tune the model
+        fine_tune_with_trainer(
+            train_dataset=train_subset,
+            eval_dataset=eval_subset,
+            model=rag_model,
+            tokenizer=tokenizer,
+            output_dir=paths["model_dir"]
+        )
+        
+        return FineTuneResponse(
+            message=f"✅ Successfully fine-tuned model for org '{request.org_id}'",
+            org_id=request.org_id,
+            status="completed",
+            model_path=paths["model_dir"]
+        )
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Fine-tuning failed: {str(e)}")
+
+@app.post("/evaluate")
+async def evaluate_model(org_id: str, questions: list[str] = None):
+    """Evaluate the model for a specific organization"""
+    try:
+        # Default evaluation questions if none provided
+        if not questions:
+            questions = [
+                "What are the key steps in laparoscopic appendectomy?",
+                "Describe the blood supply to the pancreas",
+                "What are the contraindications for robotic surgery?",
+                "How do you manage postoperative bleeding after thyroidectomy?"
+            ]
+        
+        # Check if org has training data
+        if org_id not in ORG_FAISS_INDEXES:
+            try:
+                load_faiss_into_memory(org_id)
+            except Exception:
+                raise HTTPException(
+                    status_code=404, 
+                    detail=f"No training data found for org '{org_id}'. Please upload training materials first."
+                )
+        
+        paths = get_org_paths(org_id)
+        eval_path = os.path.join(paths["base"], "evaluation_results.json")
+        
+        # Run evaluation
+        evaluate_on_examples(
+            model=rag_model,
+            tokenizer=tokenizer,
+            sample_questions=questions,
+            save_path=eval_path,
+            k=3,
+            org_id=org_id
+        )
+        
+        # Load and return results
+        with open(eval_path, "r", encoding="utf-8") as f:
+            results = json.load(f)
+        
+        return {
+            "org_id": org_id,
+            "evaluation_results": results,
+            "summary": {
+                "total_questions": len(results),
+                "avg_overlap_score": sum(r.get("overlap_score", 0) for r in results if r.get("overlap_score")) / len(results),
+                "hallucination_count": sum(1 for r in results if r.get("hallucination_flag", False))
+            }
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Evaluation failed: {str(e)}")
 
 if __name__ == "__main__":
     # Load any existing org data on startup

@@ -172,6 +172,88 @@ class AthenAIClient {
             return false;
         }
     }
+
+    // Fine-tune model for an organization
+    async fineTuneModel(orgId = null, options = {}) {
+        const targetOrgId = orgId || this.defaultOrgId;
+        
+        if (!targetOrgId) {
+            throw new Error('Organization ID is required for fine-tuning');
+        }
+
+        try {
+            this._log(`Starting fine-tuning for org: ${targetOrgId}`);
+            
+            const response = await fetch(`${this.apiBaseUrl}/fine-tune`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    org_id: targetOrgId,
+                    epochs: options.epochs || 3,
+                    learning_rate: options.learning_rate || 2e-4,
+                    batch_size: options.batch_size || 1
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                this._log('Fine-tuning completed', data);
+                return {
+                    success: true,
+                    message: data.message,
+                    orgId: data.org_id,
+                    status: data.status,
+                    modelPath: data.model_path
+                };
+            } else {
+                throw new Error(data.detail || 'Fine-tuning failed');
+            }
+        } catch (error) {
+            this._log('Fine-tuning failed', error);
+            throw error;
+        }
+    }
+
+    // Evaluate model performance
+    async evaluateModel(orgId = null, questions = null) {
+        const targetOrgId = orgId || this.defaultOrgId;
+        
+        if (!targetOrgId) {
+            throw new Error('Organization ID is required for evaluation');
+        }
+
+        try {
+            this._log(`Evaluating model for org: ${targetOrgId}`);
+            
+            const params = new URLSearchParams({ org_id: targetOrgId });
+            if (questions && questions.length > 0) {
+                params.append('questions', JSON.stringify(questions));
+            }
+            
+            const response = await fetch(`${this.apiBaseUrl}/evaluate?${params}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            
+            const data = await response.json();
+            
+            if (response.ok) {
+                this._log('Evaluation completed', data);
+                return {
+                    success: true,
+                    orgId: data.org_id,
+                    results: data.evaluation_results,
+                    summary: data.summary
+                };
+            } else {
+                throw new Error(data.detail || 'Evaluation failed');
+            }
+        } catch (error) {
+            this._log('Evaluation failed', error);
+            throw error;
+        }
+    }
 }
 
 // UI Helper Class for easy integration
@@ -199,7 +281,11 @@ class AthenAIUI {
                     <div style="margin-bottom: 15px;">
                         <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #495057;">📤 Upload Training Data (ZIP file):</label>
                         <input type="file" id="athen-file-upload" accept=".zip" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 10px;">
-                        <button onclick="athenUIInstance.uploadFile()" style="background: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: 600;">Upload Training Data</button>
+                        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                            <button onclick="athenUIInstance.uploadFile()" style="background: #28a745; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: 600;">Upload Training Data</button>
+                            <button onclick="athenUIInstance.fineTuneModel()" id="athen-finetune-btn" style="background: #6f42c1; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: 600;" disabled>🧠 Fine-Tune Model</button>
+                            <button onclick="athenUIInstance.evaluateModel()" id="athen-evaluate-btn" style="background: #fd7e14; color: white; border: none; padding: 10px 20px; border-radius: 5px; cursor: pointer; font-weight: 600;" disabled>📊 Evaluate Model</button>
+                        </div>
                     </div>
                     <div>
                         <label style="display: block; margin-bottom: 5px; font-weight: 600; color: #495057;">🏥 Organization ID:</label>
@@ -308,8 +394,10 @@ class AthenAIUI {
                             📊 Processed: ${result.processedFiles}<br><br>
                             You can now ask questions about the uploaded materials!`, 'bot');
             
-            // Clear file input
+            // Clear file input and enable fine-tuning button
             fileInput.value = '';
+            document.getElementById('athen-finetune-btn').disabled = false;
+            document.getElementById('athen-evaluate-btn').disabled = false;
             
         } catch (error) {
             this.addMessage(`❌ <strong>Upload failed:</strong> ${error.message}<br><br>
@@ -317,6 +405,67 @@ class AthenAIUI {
                             • Make sure the file is a ZIP archive<br>
                             • Check that it contains PDF, DOCX, or text files<br>
                             • Ensure the file size is under 100MB`, 'bot', null, true);
+        }
+    }
+
+    // Fine-tune model
+    async fineTuneModel() {
+        const fineTuneBtn = document.getElementById('athen-finetune-btn');
+        const originalText = fineTuneBtn.textContent;
+        
+        try {
+            fineTuneBtn.disabled = true;
+            fineTuneBtn.textContent = '🧠 Fine-tuning...';
+            
+            this.addMessage('🧠 <strong>Starting model fine-tuning...</strong><br>This may take several minutes. Please wait.', 'bot');
+            
+            const result = await this.client.fineTuneModel();
+            
+            this.addMessage(`✅ <strong>Fine-tuning completed!</strong><br>
+                            🏥 Organization: ${result.orgId}<br>
+                            📈 Status: ${result.status}<br>
+                            💾 Model saved to: ${result.modelPath}<br><br>
+                            Your model is now optimized for better performance!`, 'bot');
+            
+        } catch (error) {
+            this.addMessage(`❌ <strong>Fine-tuning failed:</strong> ${error.message}<br><br>
+                            💡 Make sure you have uploaded training data first.`, 'bot', null, true);
+        } finally {
+            fineTuneBtn.disabled = false;
+            fineTuneBtn.textContent = originalText;
+        }
+    }
+
+    // Evaluate model
+    async evaluateModel() {
+        const evaluateBtn = document.getElementById('athen-evaluate-btn');
+        const originalText = evaluateBtn.textContent;
+        
+        try {
+            evaluateBtn.disabled = true;
+            evaluateBtn.textContent = '📊 Evaluating...';
+            
+            this.addMessage('📊 <strong>Running model evaluation...</strong><br>Testing with sample medical questions...', 'bot');
+            
+            const result = await this.client.evaluateModel();
+            
+            const summary = result.summary;
+            const avgScore = (summary.avg_overlap_score * 100).toFixed(1);
+            const hallucinations = summary.hallucination_count;
+            
+            this.addMessage(`📊 <strong>Evaluation completed!</strong><br>
+                            🏥 Organization: ${result.orgId}<br>
+                            📝 Questions tested: ${summary.total_questions}<br>
+                            🎯 Average confidence: ${avgScore}%<br>
+                            ⚠️ Potential hallucinations: ${hallucinations}<br><br>
+                            ${avgScore > 70 ? '✅ Model performance looks good!' : '⚠️ Consider uploading more training data to improve performance.'}`, 'bot');
+            
+        } catch (error) {
+            this.addMessage(`❌ <strong>Evaluation failed:</strong> ${error.message}<br><br>
+                            💡 Make sure you have uploaded training data first.`, 'bot', null, true);
+        } finally {
+            evaluateBtn.disabled = false;
+            evaluateBtn.textContent = originalText;
         }
     }
 

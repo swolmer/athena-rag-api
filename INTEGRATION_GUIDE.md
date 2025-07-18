@@ -19,6 +19,8 @@ GET  /health           // Check API status and GPU info (RTX 4090)
 GET  /orgs             // List all organizations with training data
 POST /upload           // Upload ZIP file with training materials
 POST /query            // Ask questions and get RAG answers
+POST /fine-tune        // Fine-tune model for specific organization
+POST /evaluate         // Evaluate model performance with test questions
 ```
 
 ### Model Information
@@ -26,6 +28,7 @@ POST /query            // Ask questions and get RAG answers
 - **Embedding Model**: all-MiniLM-L6-v2 (Running on CUDA)
 - **GPU**: NVIDIA RTX 4090 
 - **Framework**: FastAPI with CORS enabled
+- **Fine-tuning**: ✅ Supported with custom training data
 
 ## 🔧 Integration Methods
 
@@ -121,6 +124,60 @@ await athenAI.query("What are the contraindications for robotic surgery?");
 
 // Complications and management
 await athenAI.query("How do you manage postoperative bleeding after thyroidectomy?");
+```
+
+## 🧠 Fine-tuning Your Model
+
+Once you've uploaded training data, you can fine-tune the model for better performance:
+
+### Basic Fine-tuning
+```javascript
+const client = new AthenAIClient('https://your-pod-id-8000.proxy.runpod.net');
+
+// Start fine-tuning
+const fineTuneResult = await client.fineTuneModel('your_hospital_name', {
+    epochs: 3,
+    learning_rate: 2e-4,
+    batch_size: 1
+});
+
+console.log('Fine-tuning status:', fineTuneResult.status);
+console.log('Estimated completion:', fineTuneResult.estimated_time_minutes);
+```
+
+### Evaluate Model Performance
+```javascript
+// Check how well your model is performing
+const evaluation = await client.evaluateModel('your_hospital_name');
+
+console.log('Average confidence:', evaluation.summary.avg_overlap_score);
+console.log('Total evaluations:', evaluation.summary.total_evaluations);
+console.log('Hallucinations detected:', evaluation.summary.hallucination_count);
+
+// View detailed results
+evaluation.results.forEach(result => {
+    console.log(`Question: ${result.question}`);
+    console.log(`Confidence: ${result.overlap_score}`);
+    console.log(`Answer quality: ${result.is_hallucination ? 'Poor' : 'Good'}`);
+});
+```
+
+### Manual Fine-tuning via API
+```javascript
+async function fineTuneModel(orgId, options = {}) {
+    const response = await fetch(`${API_URL}/fine-tune`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            org_id: orgId,
+            epochs: options.epochs || 3,
+            learning_rate: options.learning_rate || 2e-4,
+            batch_size: options.batch_size || 1,
+            max_seq_length: options.max_seq_length || 2048
+        })
+    });
+    return response.json();
+}
 ```
 
 ## 🔗 Integration with Existing Athen.ai Website
@@ -264,21 +321,45 @@ The provided interfaces are responsive. For mobile optimization:
 
 ## 📁 Required Files for GitHub Upload
 
-To deploy this system, upload these files to your repository:
+To deploy this complete medical AI system, upload these files to your repository:
 
-### Core Integration Files
-- `athen-ai-client.js` - JavaScript API client library
+### ✅ Core Integration Files (Frontend)
+- `athen-ai-client.js` - JavaScript API client library with fine-tuning support
 - `runpod-automation-integration.js` - Automated training pipeline
-- `frontend-integration.html` - Standalone demo interface
-- `INTEGRATION_GUIDE.md` - This documentation
+- `frontend-integration.html` - Standalone demo interface with fine-tuning UI
+- `INTEGRATION_GUIDE.md` - This comprehensive documentation
 
-### Backend Files (Already in Repository)
-- `main_script_orgid.py` - Main RunPod API server
-- `requirements.txt` - Python dependencies
+### ✅ Backend Files (RunPod Server)
+- `main_script_orgid.py` - Main RunPod API server with fine-tuning endpoints
+- `requirements.txt` - Python dependencies (version conflicts fixed)
 - `README.md` - Project documentation
 
-### Optional Enhancement Files
+### ✅ Documentation Files
 - `COMPLETE_SETUP_GUIDE.md` - Comprehensive setup instructions
-- Any custom CSS/styling files for your branding
+- `DEPLOYMENT_NOTES.md` - Deployment and troubleshooting guide
+
+### 🔧 Fixed Version Conflicts
+The `requirements.txt` has been updated to resolve:
+- ✅ **spacy version conflict**: Downgraded from 3.7.4 to 3.6.1 for scispacy compatibility
+- ✅ **Fine-tuning dependencies**: Added peft, trl, bitsandbytes, datasets for advanced training
+- ✅ **All dependencies verified**: Compatible versions for production deployment
+
+### 📤 GitHub Upload Checklist
+Before uploading to GitHub:
+
+1. **Verify RunPod URL**: Update all example URLs in documentation with your actual RunPod endpoint
+2. **Test fine-tuning**: Ensure `/fine-tune` and `/evaluate` endpoints work correctly
+3. **Organization IDs**: Update example organization IDs in documentation
+4. **Security**: Remove any API keys or sensitive information from code
+5. **README**: Update README.md with your specific deployment instructions
+
+### 🚀 Ready for Production
+Your system now includes:
+- ✅ **RAG capabilities** for document-based Q&A
+- ✅ **Fine-tuning system** for improved model performance  
+- ✅ **Evaluation framework** for quality assurance
+- ✅ **Complete automation** from upload to deployment
+- ✅ **Organization isolation** for multi-tenant deployment
+- ✅ **Version-compatible dependencies** for smooth installation
 
 Need help? The API is already running and ready to use! 🚀
