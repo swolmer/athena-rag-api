@@ -1,0 +1,21 @@
+# RunPod Manual Deployment Commands
+# Copy and paste these into RunPod terminal
+
+# Update system
+apt update && apt install -y git curl
+
+# Clone your repository
+git clone -b runpod-deployment https://github.com/swolmer/athena-rag-api.git
+cd athena-rag-api
+
+# Set environment variables
+export RAG_API_KEY=kilment1234
+export HF_TOKEN=your_huggingface_token
+export ATHEN_JWT_TOKEN=kilment1234
+export CUDA_VISIBLE_DEVICES=0
+
+# Make start script executable
+chmod +x start_runpod.sh
+
+# Run the deployment script
+./start_runpod.sh

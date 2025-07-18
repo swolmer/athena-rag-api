@@ -1,0 +1,21 @@
+{
+  "api_url": "https://7fw9i838ml6e89-19123-2kbevou0smub53klr189.proxy.runpod.net",
+  "endpoints": {
+    "health": "/health",
+    "query": "/query", 
+    "upload": "/upload",
+    "fine_tune": "/fine-tune",
+    "evaluate": "/evaluate",
+    "orgs": "/orgs"
+  },
+  "quick_test": {
+    "health_check": "https://7fw9i838ml6e89-19123-2kbevou0smub53klr189.proxy.runpod.net/health",
+    "javascript_init": "const api = 'https://7fw9i838ml6e89-19123-2kbevou0smub53klr189.proxy.runpod.net'; const medicalAI = new AthenAIClient(api, {defaultOrgId: 'your_hospital_name'});",
+    "python_test": "import requests; print(requests.get('https://7fw9i838ml6e89-19123-2kbevou0smub53klr189.proxy.runpod.net/health').json())"
+  },
+  "replit_ready": {
+    "base_url": "https://7fw9i838ml6e89-19123-2kbevou0smub53klr189.proxy.runpod.net",
+    "cors_enabled": true,
+    "ready_to_use": true
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "medical_ai_config": {
+    "api_base_url": "https://7fw9i838ml6e89-19123-2kbevou0smub53klr189.proxy.runpod.net",
+    "endpoints": {
+      "health": "https://7fw9i838ml6e89-19123-2kbevou0smub53klr189.proxy.runpod.net/health",
+      "upload": "https://7fw9i838ml6e89-19123-2kbevou0smub53klr189.proxy.runpod.net/upload",
+      "query": "https://7fw9i838ml6e89-19123-2kbevou0smub53klr189.proxy.runpod.net/query",
+      "fine_tune": "https://7fw9i838ml6e89-19123-2kbevou0smub53klr189.proxy.runpod.net/fine-tune",
+      "evaluate": "https://7fw9i838ml6e89-19123-2kbevou0smub53klr189.proxy.runpod.net/evaluate",
+      "organizations": "https://7fw9i838ml6e89-19123-2kbevou0smub53klr189.proxy.runpod.net/orgs"
+    },
+    "default_settings": {
+      "org_id": "your_hospital_name",
+      "k_retrieval": 3,
+      "max_tokens": 512,
+      "temperature": 0.7
+    },
+    "integration": {
+      "cors_enabled": true,
+      "supported_formats": ["ZIP"],
+      "supported_file_types": ["PDF", "DOCX", "TXT", "PNG", "JPG", "JPEG"]
+    }
+  },
+  "replit_integration": {
+    "javascript_client_setup": {
+      "cdn_url": "https://cdn.jsdelivr.net/gh/YOUR-USERNAME/YOUR-REPO@main/athen-ai-client.js",
+      "initialization_code": "const medicalAI = new AthenAIClient('https://7fw9i838ml6e89-19123-2kbevou0smub53klr189.proxy.runpod.net', { defaultOrgId: 'your_hospital_name', debug: true });",
+      "test_connection": "medicalAI.testConnection().then(result => console.log('Health Check:', result)).catch(error => console.error('Connection Failed:', error));"
+    },
+    "python_client_setup": {
+      "requests_example": {
+        "health_check": "import requests; response = requests.get('https://7fw9i838ml6e89-19123-2kbevou0smub53klr189.proxy.runpod.net/health'); print(response.json())",
+        "query_example": "import requests; response = requests.post('https://7fw9i838ml6e89-19123-2kbevou0smub53klr189.proxy.runpod.net/query', json={'question': 'What is appendectomy?', 'org_id': 'your_hospital_name', 'k': 3}); print(response.json())"
+      }
+    }
+  },
+  "deployment_info": {
+    "platform": "RunPod",
+    "gpu": "RTX 4090",
+    "port": 19123,
+    "status": "active",
+    "features": [
+      "Medical RAG System",
+      "Multi-tenant Organization Support", 
+      "Fine-tuning Capabilities",
+      "Document Upload & Processing",
+      "Real-time Query Processing"
+    ]
+  },
+  "usage_examples": {
+    "curl_health_check": "curl -X GET 'https://7fw9i838ml6e89-19123-2kbevou0smub53klr189.proxy.runpod.net/health'",
+    "curl_query": "curl -X POST 'https://7fw9i838ml6e89-19123-2kbevou0smub53klr189.proxy.runpod.net/query' -H 'Content-Type: application/json' -d '{\"question\": \"What are the steps in laparoscopic surgery?\", \"org_id\": \"your_hospital_name\", \"k\": 3}'",
+    "curl_upload": "curl -X POST 'https://7fw9i838ml6e89-19123-2kbevou0smub53klr189.proxy.runpod.net/upload' -F 'file=@medical_docs.zip' -F 'org_id=your_hospital_name'",
+    "javascript_fetch": {
+      "health_check": "fetch('https://7fw9i838ml6e89-19123-2kbevou0smub53klr189.proxy.runpod.net/health').then(r => r.json()).then(data => console.log(data));",
+      "query": "fetch('https://7fw9i838ml6e89-19123-2kbevou0smub53klr189.proxy.runpod.net/query', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ question: 'What is appendectomy?', org_id: 'your_hospital_name', k: 3 }) }).then(r => r.json()).then(data => console.log(data));"
+    }
+  },
+  "environment_variables": {
+    "API_URL": "https://7fw9i838ml6e89-19123-2kbevou0smub53klr189.proxy.runpod.net",
+    "DEFAULT_ORG_ID": "your_hospital_name",
+    "API_KEY": "optional_api_key_if_needed",
+    "TIMEOUT": "30000"
+  }
+}

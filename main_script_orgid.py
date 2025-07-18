@@ -1094,7 +1094,7 @@ if __name__ == "__main__":
                 logging.warning(f"⚠️ Could not load data for org '{org_dir}': {e}")
     
     # Start the FastAPI server
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    uvicorn.run(app, host="0.0.0.0", port=19123)
 
 # ============================
 # 🌐 17. UPLOAD & INDEX MATERIALS (ORG-AWARE)
@@ -1127,7 +1127,7 @@ def handle_uploaded_zip(zip_path: str, org_id: str):
         build_faiss_index_from_training_dir(org_id)
 
         # Step 5: Reload into memory
-        load_rag_resources(org_id)
+        load_faiss_into_memory(org_id)
 
         logging.info(f"🎉 Upload and indexing complete for org '{org_id}'")
 
