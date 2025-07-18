@@ -1,0 +1,125 @@
+{
+  "name": "Athen.ai Healthcare RAG Platform",
+  "description": "Production-ready healthcare AI platform with RAG capabilities, optimized for RunPod GPU instances",
+  "image": "athenai/healthcare-rag:latest",
+  "category": "AI/ML",
+  "version": "1.0.0",
+  "ports": [
+    {
+      "containerPort": 8000,
+      "protocol": "HTTP",
+      "description": "FastAPI Server - Main API endpoints"
+    },
+    {
+      "containerPort": 8501,
+      "protocol": "HTTP", 
+      "description": "Streamlit Dashboard - Web interface"
+    }
+  ],
+  "environmentVariables": [
+    {
+      "key": "RAG_API_KEY",
+      "value": "kilment1234",
+      "description": "API key for RAG system authentication"
+    },
+    {
+      "key": "HF_TOKEN",
+      "value": "your_huggingface_token",
+      "description": "Hugging Face token for model access"
+    },
+    {
+      "key": "ATHEN_JWT_TOKEN", 
+      "value": "kilment1234",
+      "description": "JWT token for API authentication"
+    },
+    {
+      "key": "CUDA_VISIBLE_DEVICES",
+      "value": "0",
+      "description": "GPU device selection"
+    },
+    {
+      "key": "PYTORCH_CUDA_ALLOC_CONF",
+      "value": "max_split_size_mb:512",
+      "description": "PyTorch CUDA memory configuration"
+    }
+  ],
+  "volumeMounts": [
+    {
+      "containerPath": "/app/data",
+      "description": "Data storage for uploads, models, and indexes"
+    },
+    {
+      "containerPath": "/app/logs",
+      "description": "Application logs"
+    }
+  ],
+  "resources": {
+    "gpu": {
+      "type": "NVIDIA",
+      "count": 1,
+      "memory": "8GB+"
+    },
+    "cpu": {
+      "cores": 4
+    },
+    "memory": {
+      "size": "16GB"
+    },
+    "storage": {
+      "size": "50GB"
+    }
+  },
+  "commands": {
+    "start": "./start_runpod.sh",
+    "healthCheck": "curl -f http://localhost:8000/health"
+  },
+  "features": [
+    "🏥 Multi-organization healthcare RAG",
+    "📁 Document upload and processing",
+    "🤖 Async model training on GPU", 
+    "💬 Real-time AI chat interface",
+    "📊 Analytics dashboard",
+    "🔒 JWT authentication",
+    "🐳 Docker containerized",
+    "⚡ GPU accelerated",
+    "📖 OpenAPI documentation",
+    "🌐 CORS enabled for web integration"
+  ],
+  "endpoints": [
+    {
+      "path": "/health",
+      "method": "GET",
+      "description": "Health check endpoint"
+    },
+    {
+      "path": "/rag/{org_id}/upload",
+      "method": "POST", 
+      "description": "Upload medical documents"
+    },
+    {
+      "path": "/rag/{org_id}/training/start",
+      "method": "POST",
+      "description": "Start RAG model training"
+    },
+    {
+      "path": "/rag/{org_id}/chat",
+      "method": "POST",
+      "description": "Query trained chatbot"
+    },
+    {
+      "path": "/dashboard/metrics",
+      "method": "GET",
+      "description": "Get platform metrics"
+    }
+  ],
+  "documentation": {
+    "readme": "README.md",
+    "apiDocs": "http://localhost:8000/docs",
+    "dashboard": "http://localhost:8501"
+  },
+  "support": {
+    "github": "https://github.com/yourusername/athen-ai",
+    "documentation": "./docs/",
+    "license": "MIT"
+  }
+}
