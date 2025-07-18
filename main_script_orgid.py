@@ -7,7 +7,6 @@ import os
 import json
 import logging
 import pickle
-import argparse
 
 # --- Numerical / Data ---
 import numpy as np
@@ -677,91 +676,6 @@ def evaluate_on_examples(model, tokenizer, sample_questions, save_path="eval_out
         logging.error(f"❌ Failed to save evaluation results: {e}")
 
 # ============================
-# 12. EVALUATION FUNCTION — FIXED
-# ============================
-
-def token_overlap_score(answer: str, context: str) -> float:
-    """
-    Calculates token-level overlap between answer and context for hallucination risk estimation.
-    """
-    import re
-    answer_tokens = set(re.findall(r"\b\w+\b", answer.lower()))
-    context_tokens = set(re.findall(r"\b\w+\b", context.lower()))
-    overlap = answer_tokens & context_tokens
-    return len(overlap) / max(1, len(answer_tokens))
-
-
-def evaluate_on_examples(model, tokenizer, sample_questions, save_path="eval_outputs.json", k=3, org_id=None):
-    """
-    Evaluates the RAG chatbot on a list of questions using retrieved context and overlap scoring.
-    Saves structured results to a JSON file.
-
-    Parameters:
-    - model: Hugging Face language model (Mistral or similar)
-    - tokenizer: Corresponding tokenizer
-    - sample_questions (list of str): Questions to evaluate
-    - save_path (str): Where to store the evaluation output
-    - k (int): Number of chunks to retrieve
-    - org_id (str): Organization ID for selecting the correct FAISS index and training data
-    """
-    global rag_model, faiss_index, rag_chunks, rag_embeddings  # required globals
-
-    outputs = []
-
-    for idx, question in enumerate(sample_questions, 1):
-        print(f"\n🔹 Question {idx}/{len(sample_questions)}: {question}")
-
-        try:
-            # Step 1: Retrieve top-k chunks
-            context_chunks = retrieve_context(query=question, k=k, org_id=org_id)
-            context_combined = " ".join(context_chunks)
-
-            # Step 2: Generate answer from model
-            answer = generate_rag_answer_with_context(
-                user_question=question,
-                context_chunks=context_chunks,
-                mistral_tokenizer=tokenizer,
-                mistral_model=model
-            )
-
-            # Step 3: Compute token overlap
-            overlap_score = token_overlap_score(answer, context_combined)
-            hallucinated = overlap_score < 0.35
-
-            if hallucinated:
-                logging.warning(f"⚠️ Token Overlap = {overlap_score:.2f} — potential hallucination.")
-                answer = "⚠️ Unable to generate a confident answer from the available context."
-
-            print("✅ Answer:", answer)
-
-            outputs.append({
-                "question": question,
-                "context_chunks": context_chunks,
-                "answer": answer,
-                "overlap_score": round(overlap_score, 3),
-                "hallucination_flag": hallucinated
-            })
-
-        except Exception as e:
-            logging.error(f"❌ Error generating answer for question {idx}: {e}")
-            outputs.append({
-                "question": question,
-                "context_chunks": [],
-                "answer": f"Error: {e}",
-                "overlap_score": None,
-                "hallucination_flag": True
-            })
-
-    # Save evaluation results
-    try:
-        with open(save_path, "w", encoding="utf-8") as f:
-            json.dump(outputs, f, indent=2)
-        print(f"📁 Evaluation results saved to: {save_path}")
-    except Exception as e:
-        logging.error(f"❌ Failed to save evaluation results: {e}")
-
-
-# ============================
 # 📦 13. ZIP FILE HANDLER (UPLOAD + INDEX)
 # ============================
 
@@ -893,115 +807,157 @@ def load_rag_resources(org_id):
         faiss_index = faiss.read_index(paths["faiss_index"])
         logging.info(f"✅ Rebuilt FAISS index for org '{org_id}'")
 
-# SECTION 16: CLI COMMANDS FOR RAG API INTERACTION
-import argparse
-from API_helper import (
-    upload_file_to_rag,
-    get_training_status,
-    query_remote_chat,
-    get_model_info,
-    get_chat_history,
-    clear_uploaded_data,
-    trigger_model_training,
-    list_all_orgs,
-    list_models_for_org,
-    get_usage_analytics,
-    delete_model,
+# ============================
+# 🌐 16. FASTAPI WEB SERVER FOR RUNPOD
+# ============================
+
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import tempfile
+import uvicorn
+
+app = FastAPI(title="Athen.ai RAG API", version="1.0.0")
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-def run_api_cli():
-    parser = argparse.ArgumentParser(description="🔧 Athen.ai RAG API CLI")
-    subparsers = parser.add_subparsers(dest="command", help="API actions")
+# Request/Response models
+class QueryRequest(BaseModel):
+    question: str
+    org_id: str
+    k: int = 3
 
-    # Upload file
-    upload = subparsers.add_parser("upload", help="Upload file to RAG")
-    upload.add_argument("file_path", help="Path to training file")
-    upload.add_argument("org_id", help="Organization ID")
+class QueryResponse(BaseModel):
+    answer: str
+    context_chunks: list
+    org_id: str
 
-    # Trigger training
-    train = subparsers.add_parser("train", help="Trigger model training")
-    train.add_argument("org_id", help="Organization ID")
+@app.get("/")
+async def root():
+    return {"message": "� Athen.ai RAG API is running on RunPod!"}
 
-    # Check training status
-    status = subparsers.add_parser("status", help="Check training status")
-    status.add_argument("org_id", help="Organization ID")
+@app.get("/health")
+async def health_check():
+    return {
+        "status": "healthy",
+        "cuda_available": torch.cuda.is_available(),
+        "device": str(DEVICE),
+        "gpu_name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "None"
+    }
 
-    # Query model
-    chat = subparsers.add_parser("chat", help="Query the remote model")
-    chat.add_argument("org_id", help="Organization ID")
-    chat.add_argument("question", help="Question to ask")
+@app.post("/upload", response_model=dict)
+async def upload_training_data(
+    file: UploadFile = File(...),
+    org_id: str = Form(...)
+):
+    """Upload ZIP file containing training materials for an organization"""
+    if not file.filename.endswith('.zip'):
+        raise HTTPException(status_code=400, detail="Only ZIP files are supported")
+    
+    try:
+        # Save uploaded file temporarily
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.zip') as tmp_file:
+            content = await file.read()
+            tmp_file.write(content)
+            temp_path = tmp_file.name
+        
+        # Process the upload
+        handle_uploaded_zip(temp_path, org_id)
+        
+        # Clean up temp file
+        os.unlink(temp_path)
+        
+        return {
+            "message": f"✅ Successfully uploaded and indexed training data for org '{org_id}'",
+            "org_id": org_id,
+            "filename": file.filename
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
-    # Get model info
-    model_info = subparsers.add_parser("model_info", help="Get model info")
-    model_info.add_argument("org_id", help="Organization ID")
+@app.post("/query", response_model=QueryResponse)
+async def query_rag(request: QueryRequest):
+    """Query the RAG system for a specific organization"""
+    try:
+        # Ensure org data is loaded
+        if request.org_id not in ORG_FAISS_INDEXES:
+            try:
+                load_faiss_into_memory(request.org_id)
+            except Exception:
+                raise HTTPException(
+                    status_code=404, 
+                    detail=f"No training data found for org '{request.org_id}'. Please upload training materials first."
+                )
+        
+        # Retrieve context
+        context_chunks = retrieve_context(
+            query=request.question,
+            k=request.k,
+            org_id=request.org_id
+        )
+        
+        # Generate answer
+        answer = generate_rag_answer_with_context(
+            user_question=request.question,
+            context_chunks=context_chunks,
+            mistral_tokenizer=tokenizer,
+            mistral_model=rag_model
+        )
+        
+        return QueryResponse(
+            answer=answer,
+            context_chunks=context_chunks,
+            org_id=request.org_id
+        )
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Query failed: {str(e)}")
 
-    # Get chat history
-    history = subparsers.add_parser("history", help="Get chat history")
-    history.add_argument("org_id", help="Organization ID")
-
-    # Clear uploaded data
-    clear = subparsers.add_parser("clear", help="Clear uploaded files")
-    clear.add_argument("org_id", help="Organization ID")
-
-    # List orgs
-    subparsers.add_parser("list_orgs", help="List all orgs and their models")
-
-    # List models for org
-    models = subparsers.add_parser("list_models", help="List models for an org")
-    models.add_argument("org_id", help="Organization ID")
-
-    # Get usage analytics
-    analytics = subparsers.add_parser("analytics", help="Get usage analytics")
-    analytics.add_argument("org_id", help="Organization ID")
-
-    # Delete model
-    delete = subparsers.add_parser("delete_model", help="Delete a model")
-    delete.add_argument("model_id", help="Model ID to delete")
-
-    args = parser.parse_args()
-
-    # Route command to function
-    if args.command == "upload":
-        upload_file_to_rag(args.file_path, args.org_id)
-
-    elif args.command == "train":
-        trigger_model_training(args.org_id)
-
-    elif args.command == "status":
-        get_training_status(args.org_id)
-
-    elif args.command == "chat":
-        query_remote_chat(args.org_id, args.question)
-
-    elif args.command == "model_info":
-        get_model_info(args.org_id)
-
-    elif args.command == "history":
-        get_chat_history(args.org_id)
-
-    elif args.command == "clear":
-        clear_uploaded_data(args.org_id)
-
-    elif args.command == "list_orgs":
-        list_all_orgs()
-
-    elif args.command == "list_models":
-        list_models_for_org(args.org_id)
-
-    elif args.command == "analytics":
-        get_usage_analytics(args.org_id)
-
-    elif args.command == "delete_model":
-        delete_model(args.model_id)
-
-    else:
-        parser.print_help()
+@app.get("/orgs")
+async def list_organizations():
+    """List all organizations with available models"""
+    try:
+        orgs = []
+        if os.path.exists(ORG_DATA_ROOT):
+            for org_dir in os.listdir(ORG_DATA_ROOT):
+                org_path = os.path.join(ORG_DATA_ROOT, org_dir)
+                if os.path.isdir(org_path):
+                    paths = get_org_paths(org_dir)
+                    has_index = os.path.exists(paths["faiss_index"])
+                    orgs.append({
+                        "org_id": org_dir,
+                        "has_training_data": has_index,
+                        "status": "ready" if has_index else "needs_training"
+                    })
+        
+        return {"organizations": orgs}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to list orgs: {str(e)}")
 
 if __name__ == "__main__":
-    run_api_cli()
+    # Load any existing org data on startup
+    if os.path.exists(ORG_DATA_ROOT):
+        for org_dir in os.listdir(ORG_DATA_ROOT):
+            try:
+                load_faiss_into_memory(org_dir)
+                logging.info(f"✅ Loaded existing data for org '{org_dir}'")
+            except Exception as e:
+                logging.warning(f"⚠️ Could not load data for org '{org_dir}': {e}")
+    
+    # Start the FastAPI server
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 
 # ============================
-# 17. UPLOAD & INDEX MATERIALS (ORG-AWARE)
+# 🌐 17. UPLOAD & INDEX MATERIALS (ORG-AWARE)
 # ============================
 
 import zipfile
@@ -1036,12 +992,6 @@ def handle_uploaded_zip(zip_path: str, org_id: str):
         logging.info(f"🎉 Upload and indexing complete for org '{org_id}'")
 
     except Exception as e:
-       logging.error(f"❌ Failed to load FAISS into memory for org '{org_id}'")
+        logging.error(f"❌ Failed to handle ZIP upload for org '{org_id}': {e}")
 
 
-# ============================
-# 18. ENTRYPOINT
-# ============================
-
-if __name__ == "__main__":
-    main()
