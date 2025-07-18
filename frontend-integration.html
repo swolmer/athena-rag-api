@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🏥 Athen.ai Medical Assistant - RunPod Demo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+        
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+        }
+        
+        .header p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+        
+        .setup-card {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 20px;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.15);
+        }
+        
+        .setup-section {
+            margin-bottom: 25px;
+        }
+        
+        .setup-section h3 {
+            color: #333;
+            margin-bottom: 15px;
+            font-size: 1.3em;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .url-input {
+            width: 100%;
+            padding: 15px 20px;
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            font-size: 16px;
+            margin-bottom: 15px;
+            transition: border-color 0.3s ease;
+        }
+        
+        .url-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .connect-btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: transform 0.2s ease;
+        }
+        
+        .connect-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.3);
+        }
+        
+        .status-indicator {
+            padding: 15px 20px;
+            border-radius: 12px;
+            margin-top: 15px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .status-connected {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .status-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .status-connecting {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        
+        .chat-container {
+            display: none;
+        }
+        
+        .footer {
+            text-align: center;
+            color: white;
+            margin-top: 30px;
+            opacity: 0.8;
+        }
+        
+        .footer a {
+            color: white;
+            text-decoration: none;
+            font-weight: 500;
+        }
+        
+        .footer a:hover {
+            text-decoration: underline;
+        }
+        
+        .example-queries {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 15px;
+            margin-top: 20px;
+        }
+        
+        .example-queries h4 {
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 1.2em;
+        }
+        
+        .example-query {
+            background: white;
+            border: 2px solid #e9ecef;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .example-query:hover {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+            transform: translateY(-1px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.2);
+        }
+        
+        .url-hint {
+            background: #e3f2fd;
+            border: 1px solid #bbdefb;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 15px;
+            font-size: 14px;
+            color: #1976d2;
+        }
+        
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2em;
+            }
+            
+            .setup-card {
+                padding: 20px;
+                margin: 10px;
+            }
+            
+            .url-input, .connect-btn {
+                font-size: 16px; /* Prevent zoom on iOS */
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏥 Athen.ai Medical Assistant</h1>
+            <p>Connect to your RunPod-deployed RAG API for intelligent medical Q&A</p>
+        </div>
+        
+        <div class="setup-card" id="setupCard">
+            <div class="setup-section">
+                <h3>🔗 Connect to Your RunPod API</h3>
+                <div class="url-hint">
+                    💡 <strong>Find your URL:</strong> Go to your RunPod dashboard → Click your pod → Copy the "Connect" URL and change the port to 8000
+                </div>
+                <input type="text" 
+                       class="url-input" 
+                       id="apiUrl" 
+                       placeholder="https://your-pod-id-8000.proxy.runpod.net"
+                       value="">
+                <button class="connect-btn" onclick="connectToAPI()">🚀 Connect & Test API</button>
+                <div id="connectionStatus"></div>
+            </div>
+            
+            <div class="setup-section">
+                <h3>🏥 Organization Settings</h3>
+                <input type="text" 
+                       class="url-input" 
+                       id="orgId" 
+                       placeholder="Enter your organization ID (e.g., emory, hospital_name)"
+                       value="emory">
+                <small style="color: #6c757d;">This helps organize your training data by department or hospital</small>
+            </div>
+            
+            <div class="example-queries">
+                <h4>📝 Example Medical Questions (try these after uploading training data):</h4>
+                <div class="example-query" onclick="setExampleQuery(this)">
+                    What are the key steps in laparoscopic appendectomy?
+                </div>
+                <div class="example-query" onclick="setExampleQuery(this)">
+                    Describe the blood supply to the pancreas and its clinical significance
+                </div>
+                <div class="example-query" onclick="setExampleQuery(this)">
+                    What are the contraindications for robotic surgery?
+                </div>
+                <div class="example-query" onclick="setExampleQuery(this)">
+                    How do you manage postoperative bleeding after thyroidectomy?
+                </div>
+                <div class="example-query" onclick="setExampleQuery(this)">
+                    What are the anatomical landmarks for central venous access?
+                </div>
+                <div class="example-query" onclick="setExampleQuery(this)">
+                    Explain the technique for endoscopic retrograde cholangiopancreatography
+                </div>
+            </div>
+        </div>
+        
+        <div class="chat-container" id="chatContainer">
+            <div id="chatInterface"></div>
+        </div>
+        
+        <div class="footer">
+            <p>🚀 Powered by <strong>Athen.ai</strong> • Running on <strong>RunPod RTX 4090</strong> • <strong>Hermes-2-Pro-Mistral-7B</strong></p>
+            <p><a href="https://github.com/swolmer/athena-rag-api" target="_blank">📚 View GitHub Repository</a> | <a href="mailto:support@athen.ai">📧 Support</a></p>
+        </div>
+    </div>
+
+    <!-- Include the Athen.ai client library -->
+    <script src="athen-ai-client.js"></script>
+    
+    <script>
+        let athenAI = null;
+        let chatUI = null;
+        
+        // Auto-populate saved settings
+        window.onload = function() {
+            const savedUrl = localStorage.getItem('athenai_api_url');
+            const savedOrgId = localStorage.getItem('athenai_org_id');
+            
+            if (savedUrl) {
+                document.getElementById('apiUrl').value = savedUrl;
+            }
+            
+            if (savedOrgId) {
+                document.getElementById('orgId').value = savedOrgId;
+            }
+        };
+        
+        async function connectToAPI() {
+            const apiUrl = document.getElementById('apiUrl').value.trim();
+            const orgId = document.getElementById('orgId').value.trim();
+            
+            if (!apiUrl) {
+                showStatus('⚠️ Please enter your RunPod API URL', 'error');
+                return;
+            }
+            
+            if (!orgId) {
+                showStatus('⚠️ Please enter an organization ID', 'error');
+                return;
+            }
+            
+            // Validate URL format
+            if (!apiUrl.includes('proxy.runpod.net') && !apiUrl.includes('localhost')) {
+                showStatus('⚠️ URL should be a RunPod proxy URL (contains proxy.runpod.net)', 'error');
+                return;
+            }
+            
+            // Show connecting status
+            showStatus('🔄 Connecting to your RunPod API...', 'connecting');
+            
+            try {
+                // Initialize client
+                athenAI = new AthenAIClient(apiUrl, {
+                    defaultOrgId: orgId,
+                    debug: true
+                });
+                
+                // Test connection
+                const result = await athenAI.testConnection();
+                
+                if (result.success) {
+                    // Save settings
+                    localStorage.setItem('athenai_api_url', apiUrl);
+                    localStorage.setItem('athenai_org_id', orgId);
+                    
+                    showStatus(`✅ Connected successfully! 
+                              <br>🖥️ GPU: ${result.gpu} 
+                              <br>⚡ CUDA: ${result.cudaAvailable ? 'Enabled' : 'Disabled'}
+                              <br>🏥 Organization: ${orgId}`, 'connected');
+                    
+                    // Show chat interface after a brief delay
+                    setTimeout(() => {
+                        showChatInterface();
+                    }, 1500);
+                    
+                } else {
+                    showStatus(`❌ Connection failed: ${result.error}
+                              <br>💡 Check that your RunPod is running and the URL is correct`, 'error');
+                }
+                
+            } catch (error) {
+                showStatus(`❌ Connection error: ${error.message}
+                          <br>💡 Verify your RunPod is running and accessible`, 'error');
+            }
+        }
+        
+        function showStatus(message, type) {
+            const statusDiv = document.getElementById('connectionStatus');
+            statusDiv.innerHTML = `<div class="status-indicator status-${type}">${message}</div>`;
+        }
+        
+        function showChatInterface() {
+            document.getElementById('setupCard').style.display = 'none';
+            document.getElementById('chatContainer').style.display = 'block';
+            
+            // Create chat UI
+            chatUI = new AthenAIUI(athenAI, 'chatInterface');
+            chatUI.createChatInterface();
+            
+            // Add welcome message with system info
+            setTimeout(() => {
+                const messagesContainer = document.getElementById('athen-messages');
+                if (messagesContainer) {
+                    const welcomeMsg = document.createElement('div');
+                    welcomeMsg.className = 'athen-message athen-bot';
+                    welcomeMsg.style.alignSelf = 'flex-start';
+                    welcomeMsg.innerHTML = `
+                        <div style="background: #d4edda; color: #155724; padding: 20px; border-radius: 15px; max-width: 90%; border: 1px solid #c3e6cb; line-height: 1.6;">
+                            🎉 <strong>Successfully connected to your RunPod API!</strong><br><br>
+                            📊 <strong>System Information:</strong><br>
+                            • 🖥️ GPU: NVIDIA RTX 4090<br>
+                            • 🧠 Model: Hermes-2-Pro-Mistral-7B<br>
+                            • 🔍 Embeddings: all-MiniLM-L6-v2<br>
+                            • 🏥 Organization: <code>${athenAI.defaultOrgId}</code><br><br>
+                            📤 <strong>Next Steps:</strong><br>
+                            1. Upload a ZIP file with medical documents<br>
+                            2. Ask medical questions and get AI-powered answers<br>
+                            3. The system will provide context-aware responses based on your training data<br><br>
+                            💡 <strong>Tip:</strong> Upload surgical manuals, medical textbooks, or procedure guidelines for best results!
+                        </div>
+                    `;
+                    messagesContainer.appendChild(welcomeMsg);
+                }
+            }, 500);
+        }
+        
+        function setExampleQuery(element) {
+            const query = element.textContent;
+            const input = document.getElementById('athen-question-input');
+            if (input) {
+                input.value = query;
+                input.focus();
+                input.scrollIntoView({ behavior: 'smooth' });
+            } else {
+                // Store for later use when chat loads
+                localStorage.setItem('pending_query', query);
+            }
+        }
+        
+        // Handle Enter key for inputs
+        document.getElementById('apiUrl').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                connectToAPI();
+            }
+        });
+        
+        document.getElementById('orgId').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                connectToAPI();
+            }
+        });
+        
+        // Auto-fill pending query when chat interface loads
+        setInterval(function() {
+            const pendingQuery = localStorage.getItem('pending_query');
+            const input = document.getElementById('athen-question-input');
+            
+            if (pendingQuery && input && !input.value) {
+                input.value = pendingQuery;
+                localStorage.removeItem('pending_query');
+                input.focus();
+            }
+        }, 1000);
+        
+        // Auto-save URL as user types
+        document.getElementById('apiUrl').addEventListener('input', function(e) {
+            localStorage.setItem('athenai_api_url_draft', e.target.value);
+        });
+        
+        document.getElementById('orgId').addEventListener('input', function(e) {
+            localStorage.setItem('athenai_org_id_draft', e.target.value);
+        });
+    </script>
+</body>
+</html>

@@ -7,7 +7,6 @@ import os
 import json
 import logging
 import pickle
-import argparse
 
 # --- Numerical / Data ---
 import numpy as np
@@ -19,8 +18,8 @@ from torch.utils.data import Dataset
 from dotenv import load_dotenv
 load_dotenv()  # ✅ Load environment variables from .env file
 
-HF_TOKEN = os.getenv("HF_TOKEN")
-RAG_API_KEY = os.getenv("RAG_API_KEY")
+HF_TOKEN = os.getenv("HF_TOKEN", "your_huggingface_token")
+RAG_API_KEY = os.getenv("RAG_API_KEY", "kilment1234")
 
 if not RAG_API_KEY:
     print("⚠️ RAG_API_KEY is not set. Check your .env file.")
@@ -677,91 +676,6 @@ def evaluate_on_examples(model, tokenizer, sample_questions, save_path="eval_out
         logging.error(f"❌ Failed to save evaluation results: {e}")
 
 # ============================
-# 12. EVALUATION FUNCTION — FIXED
-# ============================
-
-def token_overlap_score(answer: str, context: str) -> float:
-    """
-    Calculates token-level overlap between answer and context for hallucination risk estimation.
-    """
-    import re
-    answer_tokens = set(re.findall(r"\b\w+\b", answer.lower()))
-    context_tokens = set(re.findall(r"\b\w+\b", context.lower()))
-    overlap = answer_tokens & context_tokens
-    return len(overlap) / max(1, len(answer_tokens))
-
-
-def evaluate_on_examples(model, tokenizer, sample_questions, save_path="eval_outputs.json", k=3, org_id=None):
-    """
-    Evaluates the RAG chatbot on a list of questions using retrieved context and overlap scoring.
-    Saves structured results to a JSON file.
-
-    Parameters:
-    - model: Hugging Face language model (Mistral or similar)
-    - tokenizer: Corresponding tokenizer
-    - sample_questions (list of str): Questions to evaluate
-    - save_path (str): Where to store the evaluation output
-    - k (int): Number of chunks to retrieve
-    - org_id (str): Organization ID for selecting the correct FAISS index and training data
-    """
-    global rag_model, faiss_index, rag_chunks, rag_embeddings  # required globals
-
-    outputs = []
-
-    for idx, question in enumerate(sample_questions, 1):
-        print(f"\n🔹 Question {idx}/{len(sample_questions)}: {question}")
-
-        try:
-            # Step 1: Retrieve top-k chunks
-            context_chunks = retrieve_context(query=question, k=k, org_id=org_id)
-            context_combined = " ".join(context_chunks)
-
-            # Step 2: Generate answer from model
-            answer = generate_rag_answer_with_context(
-                user_question=question,
-                context_chunks=context_chunks,
-                mistral_tokenizer=tokenizer,
-                mistral_model=model
-            )
-
-            # Step 3: Compute token overlap
-            overlap_score = token_overlap_score(answer, context_combined)
-            hallucinated = overlap_score < 0.35
-
-            if hallucinated:
-                logging.warning(f"⚠️ Token Overlap = {overlap_score:.2f} — potential hallucination.")
-                answer = "⚠️ Unable to generate a confident answer from the available context."
-
-            print("✅ Answer:", answer)
-
-            outputs.append({
-                "question": question,
-                "context_chunks": context_chunks,
-                "answer": answer,
-                "overlap_score": round(overlap_score, 3),
-                "hallucination_flag": hallucinated
-            })
-
-        except Exception as e:
-            logging.error(f"❌ Error generating answer for question {idx}: {e}")
-            outputs.append({
-                "question": question,
-                "context_chunks": [],
-                "answer": f"Error: {e}",
-                "overlap_score": None,
-                "hallucination_flag": True
-            })
-
-    # Save evaluation results
-    try:
-        with open(save_path, "w", encoding="utf-8") as f:
-            json.dump(outputs, f, indent=2)
-        print(f"📁 Evaluation results saved to: {save_path}")
-    except Exception as e:
-        logging.error(f"❌ Failed to save evaluation results: {e}")
-
-
-# ============================
 # 📦 13. ZIP FILE HANDLER (UPLOAD + INDEX)
 # ============================
 
@@ -892,87 +806,298 @@ def load_rag_resources(org_id):
         rag_embeddings = np.load(paths["embeddings_npy"])
         faiss_index = faiss.read_index(paths["faiss_index"])
         logging.info(f"✅ Rebuilt FAISS index for org '{org_id}'")
+
 # ============================
-# 16. MAIN EXECUTION (CLI MODE)
+# 🌐 16. FASTAPI WEB SERVER FOR RUNPOD
 # ============================
 
-def main():
-    global rag_model, faiss_index, rag_chunks, rag_embeddings
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+import tempfile
+import uvicorn
 
-    print("🧠 Checking CUDA support:")
-    print("CUDA Available:", torch.cuda.is_available())
-    if torch.cuda.is_available():
-        print("CUDA Device Name:", torch.cuda.get_device_name(0))
+app = FastAPI(title="Athen.ai RAG API", version="1.0.0")
 
-    print("🚀 Script has started running...")
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-    # --- Org-specific setup ---
-    org_id = "emory"
-    load_rag_resources(org_id)
+# Request/Response models
+class QueryRequest(BaseModel):
+    question: str
+    org_id: str
+    k: int = 3
 
-    # ✅ Register org data into global storage
-    ORG_FAISS_INDEXES[org_id] = faiss_index
-    ORG_CHUNKS[org_id] = rag_chunks
-    ORG_EMBEDDINGS[org_id] = rag_embeddings
+class QueryResponse(BaseModel):
+    answer: str
+    context_chunks: list
+    org_id: str
 
-    parser = argparse.ArgumentParser(description="Run RAG chatbot")
-    parser.add_argument(
-        '--jsonl_path',
-        type=str,
-        default=os.path.join(BASE_DIR, "step4_structured_instruction_finetune_ready.jsonl"),
-        help="Path to JSONL training data"
-    )
-    parser.add_argument(
-        '--output_dir',
-        type=str,
-        default=os.path.join(BASE_DIR, "Models", "mistral-full-out"),
-        help="Directory to save the model (if fine-tuning)"
-    )
-    args = parser.parse_args()
+class FineTuneRequest(BaseModel):
+    org_id: str
+    epochs: int = 3
+    learning_rate: float = 2e-4
+    batch_size: int = 1
 
-    model = rag_model  # ✅ Use global model
+class FineTuneResponse(BaseModel):
+    message: str
+    org_id: str
+    status: str
+    model_path: str
 
-    # --- Run evaluation ---
-    sample_questions = [
-        "How is a DIEP flap performed?",
-        "What are the recommended closure techniques for the donor site following a DIEP flap procedure?",
-        "What are the key anatomical landmarks and vascular considerations when injecting filler into the nasolabial folds?"
-    ]
+@app.get("/")
+async def root():
+    return {"message": "� Athen.ai RAG API is running on RunPod!"}
 
-    evaluate_on_examples(
-        model=model,
-        tokenizer=tokenizer,
-        sample_questions=sample_questions,
-        save_path=os.path.join(BASE_DIR, "eval_outputs.json"),
-        k=3,
-        org_id=org_id
-    )
+@app.get("/health")
+async def health_check():
+    return {
+        "status": "healthy",
+        "cuda_available": torch.cuda.is_available(),
+        "device": str(DEVICE),
+        "gpu_name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "None"
+    }
 
-    # --- Start chatbot loop ---
-    print("🩺 RAG Chatbot Ready. Ask your surgical question or type 'exit' to quit.")
+@app.post("/upload", response_model=dict)
+async def upload_training_data(
+    file: UploadFile = File(...),
+    org_id: str = Form(...)
+):
+    """Upload ZIP file containing training materials for an organization"""
+    if not file.filename.endswith('.zip'):
+        raise HTTPException(status_code=400, detail="Only ZIP files are supported")
+    
     try:
-        while True:
-            user_question = input("You: ").strip()
-            if user_question.lower() in {"exit", "quit"}:
-                print("👋 Goodbye!")
-                break
-            if not user_question:
-                continue
+        # Save uploaded file temporarily
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.zip') as tmp_file:
+            content = await file.read()
+            tmp_file.write(content)
+            temp_path = tmp_file.name
+        
+        # Process the upload
+        handle_uploaded_zip(temp_path, org_id)
+        
+        # Clean up temp file
+        os.unlink(temp_path)
+        
+        return {
+            "message": f"✅ Successfully uploaded and indexed training data for org '{org_id}'",
+            "org_id": org_id,
+            "filename": file.filename
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Upload failed: {str(e)}")
 
-            context_chunks = retrieve_context(user_question, org_id=org_id)
-            answer = generate_rag_answer_with_context(
-                user_question=user_question,
-                context_chunks=context_chunks,
-                mistral_tokenizer=tokenizer,
-                mistral_model=model
+@app.post("/query", response_model=QueryResponse)
+async def query_rag(request: QueryRequest):
+    """Query the RAG system for a specific organization"""
+    try:
+        # Ensure org data is loaded
+        if request.org_id not in ORG_FAISS_INDEXES:
+            try:
+                load_faiss_into_memory(request.org_id)
+            except Exception:
+                raise HTTPException(
+                    status_code=404, 
+                    detail=f"No training data found for org '{request.org_id}'. Please upload training materials first."
+                )
+        
+        # Retrieve context
+        context_chunks = retrieve_context(
+            query=request.question,
+            k=request.k,
+            org_id=request.org_id
+        )
+        
+        # Generate answer
+        answer = generate_rag_answer_with_context(
+            user_question=request.question,
+            context_chunks=context_chunks,
+            mistral_tokenizer=tokenizer,
+            mistral_model=rag_model
+        )
+        
+        return QueryResponse(
+            answer=answer,
+            context_chunks=context_chunks,
+            org_id=request.org_id
+        )
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Query failed: {str(e)}")
+
+@app.get("/orgs")
+async def list_organizations():
+    """List all organizations with available models"""
+    try:
+        orgs = []
+        if os.path.exists(ORG_DATA_ROOT):
+            for org_dir in os.listdir(ORG_DATA_ROOT):
+                org_path = os.path.join(ORG_DATA_ROOT, org_dir)
+                if os.path.isdir(org_path):
+                    paths = get_org_paths(org_dir)
+                    has_index = os.path.exists(paths["faiss_index"])
+                    has_model = os.path.exists(paths["model_dir"])
+                    orgs.append({
+                        "org_id": org_dir,
+                        "has_training_data": has_index,
+                        "has_fine_tuned_model": has_model,
+                        "status": "ready" if has_index else "needs_training"
+                    })
+        
+        return {"organizations": orgs}
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to list orgs: {str(e)}")
+
+@app.post("/fine-tune", response_model=FineTuneResponse)
+async def fine_tune_model(request: FineTuneRequest):
+    """Fine-tune a model for a specific organization"""
+    try:
+        # Check if org has training data
+        if request.org_id not in ORG_FAISS_INDEXES:
+            try:
+                load_faiss_into_memory(request.org_id)
+            except Exception:
+                raise HTTPException(
+                    status_code=404, 
+                    detail=f"No training data found for org '{request.org_id}'. Please upload training materials first."
+                )
+        
+        paths = get_org_paths(request.org_id)
+        
+        # Check if training data exists
+        if not os.path.exists(paths["training_data_dir"]):
+            raise HTTPException(
+                status_code=404,
+                detail=f"No training data directory found for org '{request.org_id}'"
             )
-            print("Bot:", answer)
-    except (KeyboardInterrupt, EOFError):
-        print("\n👋 Exiting chatbot.")
+        
+        # Create JSONL training file from training materials
+        training_data = load_training_materials(paths["training_data_dir"])
+        
+        if training_data.empty:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No valid training data found for org '{request.org_id}'"
+            )
+        
+        # Convert to JSONL format
+        jsonl_path = os.path.join(paths["base"], "training_data.jsonl")
+        with open(jsonl_path, "w", encoding="utf-8") as f:
+            for _, row in training_data.iterrows():
+                json.dump({
+                    "instruction": row["input"],
+                    "output": row["output"]
+                }, f)
+                f.write("\n")
+        
+        # Create train/eval datasets
+        train_dataset = MistralQADataset(jsonl_path, tokenizer, max_length=512)
+        
+        # Split for evaluation (use 10% for eval)
+        eval_size = max(1, len(train_dataset) // 10)
+        eval_indices = list(range(len(train_dataset)))[-eval_size:]
+        train_indices = list(range(len(train_dataset)))[:-eval_size]
+        
+        from torch.utils.data import Subset
+        train_subset = Subset(train_dataset, train_indices)
+        eval_subset = Subset(train_dataset, eval_indices)
+        
+        # Fine-tune the model
+        fine_tune_with_trainer(
+            train_dataset=train_subset,
+            eval_dataset=eval_subset,
+            model=rag_model,
+            tokenizer=tokenizer,
+            output_dir=paths["model_dir"]
+        )
+        
+        return FineTuneResponse(
+            message=f"✅ Successfully fine-tuned model for org '{request.org_id}'",
+            org_id=request.org_id,
+            status="completed",
+            model_path=paths["model_dir"]
+        )
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Fine-tuning failed: {str(e)}")
 
+@app.post("/evaluate")
+async def evaluate_model(org_id: str, questions: list[str] = None):
+    """Evaluate the model for a specific organization"""
+    try:
+        # Default evaluation questions if none provided
+        if not questions:
+            questions = [
+                "What are the key steps in laparoscopic appendectomy?",
+                "Describe the blood supply to the pancreas",
+                "What are the contraindications for robotic surgery?",
+                "How do you manage postoperative bleeding after thyroidectomy?"
+            ]
+        
+        # Check if org has training data
+        if org_id not in ORG_FAISS_INDEXES:
+            try:
+                load_faiss_into_memory(org_id)
+            except Exception:
+                raise HTTPException(
+                    status_code=404, 
+                    detail=f"No training data found for org '{org_id}'. Please upload training materials first."
+                )
+        
+        paths = get_org_paths(org_id)
+        eval_path = os.path.join(paths["base"], "evaluation_results.json")
+        
+        # Run evaluation
+        evaluate_on_examples(
+            model=rag_model,
+            tokenizer=tokenizer,
+            sample_questions=questions,
+            save_path=eval_path,
+            k=3,
+            org_id=org_id
+        )
+        
+        # Load and return results
+        with open(eval_path, "r", encoding="utf-8") as f:
+            results = json.load(f)
+        
+        return {
+            "org_id": org_id,
+            "evaluation_results": results,
+            "summary": {
+                "total_questions": len(results),
+                "avg_overlap_score": sum(r.get("overlap_score", 0) for r in results if r.get("overlap_score")) / len(results),
+                "hallucination_count": sum(1 for r in results if r.get("hallucination_flag", False))
+            }
+        }
+    
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Evaluation failed: {str(e)}")
+
+if __name__ == "__main__":
+    # Load any existing org data on startup
+    if os.path.exists(ORG_DATA_ROOT):
+        for org_dir in os.listdir(ORG_DATA_ROOT):
+            try:
+                load_faiss_into_memory(org_dir)
+                logging.info(f"✅ Loaded existing data for org '{org_dir}'")
+            except Exception as e:
+                logging.warning(f"⚠️ Could not load data for org '{org_dir}': {e}")
+    
+    # Start the FastAPI server
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 
 # ============================
-# 17. UPLOAD & INDEX MATERIALS (ORG-AWARE)
+# 🌐 17. UPLOAD & INDEX MATERIALS (ORG-AWARE)
 # ============================
 
 import zipfile
@@ -1007,12 +1132,6 @@ def handle_uploaded_zip(zip_path: str, org_id: str):
         logging.info(f"🎉 Upload and indexing complete for org '{org_id}'")
 
     except Exception as e:
-       logging.error(f"❌ Failed to load FAISS into memory for org '{org_id}'")
+        logging.error(f"❌ Failed to handle ZIP upload for org '{org_id}': {e}")
 
 
-# ============================
-# 18. ENTRYPOINT
-# ============================
-
-if __name__ == "__main__":
-    main()
