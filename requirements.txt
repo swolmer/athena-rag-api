@@ -10,10 +10,11 @@ sentence-transformers>=2.2.0
 huggingface-hub>=0.16.4
 
 # RAG and Vector Search
-faiss-gpu>=1.7.4
+faiss-gpu==1.7.2
 langchain>=0.0.200
 chromadb>=0.4.0
 llama-index>=0.7.0
+python-dotenv>=1.0.0
 
 # API and Web Framework
 fastapi>=0.100.0
