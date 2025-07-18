@@ -1,135 +1,83 @@
 #!/bin/bash
-# Athen.ai Healthcare RAG Platform - RunPod Deployment Script
+# Unified Launcher for Athen.ai RAG Platform on RunPod
 
-set -e
+set -e  # Exit if anything fails
 
-echo "🏥 Starting Athen.ai Healthcare RAG Platform on RunPod..."
-echo "=================================================="
+echo "🛠️  Preparing Athen.ai Healthcare RAG Platform..."
+echo "=============================================="
 
-# ---------------------------
-# 1. Environment variables
-# ---------------------------
+# -------------------------------
+# 1. Environment Setup
+# -------------------------------
 export RAG_API_KEY=${RAG_API_KEY:-"kilment1234"}
-export HF_TOKEN=${HF_TOKEN:-"your_huggingface_token"}
+export HF_TOKEN=${HF_TOKEN:-"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"}
 export ATHEN_JWT_TOKEN=${ATHEN_JWT_TOKEN:-"kilment1234"}
-export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-"0"}
 export PYTORCH_CUDA_ALLOC_CONF=${PYTORCH_CUDA_ALLOC_CONF:-"max_split_size_mb:512"}
+export CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-"0"}
 
-echo "✅ Environment variables configured"
-echo "   RAG_API_KEY: ${RAG_API_KEY:0:8}..."
-echo "   HF_TOKEN: ${HF_TOKEN:0:8}..."
-echo "   CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
+echo "✅ Environment variables set"
+echo "   RAG_API_KEY: ${RAG_API_KEY:0:6}... • CUDA_VISIBLE_DEVICES: $CUDA_VISIBLE_DEVICES"
 
-# ---------------------------
-# 2. Create necessary folders
-# ---------------------------
-mkdir -p /app/data/uploads /app/data/models /app/data/indexes /app/logs
-echo "✅ Directories created"
-
-# ---------------------------
-# 3. Check GPU
-# ---------------------------
-if command -v nvidia-smi &> /dev/null; then
-    echo "🚀 GPU Status:"
-    nvidia-smi --query-gpu=name,memory.total,memory.used,memory.free --format=csv,noheader,nounits
-else
-    echo "⚠️  nvidia-smi not found. Running in CPU mode."
-fi
-
-# ---------------------------
-# 4. Install Python dependencies
-# ---------------------------
-echo "📦 Installing Python dependencies..."
+# -------------------------------
+# 2. Install Python Requirements
+# -------------------------------
+echo "📦 Installing dependencies..."
 pip install --upgrade pip
-pip install --no-cache-dir -r requirements.txt --no-deps || true
+pip install -r requirements.txt --no-deps || true
+pip install nltk pandas python-dotenv || true
 
-# Manually install important stragglers (if needed)
-pip install --no-cache-dir nltk pandas || true
-
-echo "✅ Dependencies installed"
-
-# ---------------------------
-# 5. Download NLTK data
-# ---------------------------
+# -------------------------------
+# 3. Download NLTK Data
+# -------------------------------
 echo "📚 Downloading NLTK data..."
-python - <<EOF
-import nltk, os
-try:
-    nltk_data_path = os.path.join(os.path.expanduser('~'), 'nltk_data')
-    nltk.download('punkt', download_dir=nltk_data_path)
-    print("✅ NLTK data downloaded")
-except Exception as e:
-    print(f"⚠️ NLTK download failed: {e}")
-EOF
+python -c "import nltk; nltk.download('punkt', quiet=True); print('✅ NLTK ready')"
 
-# ---------------------------
-# 6. Hugging Face login (optional)
-# ---------------------------
-if [ "$HF_TOKEN" != "your_huggingface_token" ]; then
-    echo "🤗 Logging in to Hugging Face..."
-    python -c "
-from huggingface_hub import login
-import os
-token = os.getenv('HF_TOKEN')
-if token:
-    login(token)
-    print('✅ Hugging Face authenticated')
-else:
-    print('⚠️ HF_TOKEN not configured')
-"
-fi
+# -------------------------------
+# 4. Hugging Face Auth
+# -------------------------------
+echo "🤗 Logging into Hugging Face with provided token..."
+python -c "from huggingface_hub import login; login('$HF_TOKEN')"
+echo "✅ Hugging Face authenticated"
 
-# ---------------------------
-# 7. Health Check Function
-# ---------------------------
-health_check() {
-    echo "🔍 Performing health check..."
-    for i in {1..30}; do
-        if curl -s http://localhost:8000/health &>/dev/null; then
-            echo "✅ Health check passed"
-            return 0
-        fi
-        echo "⏳ Attempt $i - waiting for server..."
-        sleep 2
-    done
-    echo "❌ Health check failed"
-    return 1
-}
-
-# ---------------------------
-# 8. Start App
-# ---------------------------
-echo "🚀 Starting Athen.ai Healthcare RAG Platform..."
-echo "   FastAPI: http://localhost:8000"
-echo "   Streamlit: http://localhost:8501"
-echo "   API Docs: http://localhost:8000/docs"
+# -------------------------------
+# 5. Start App
+# -------------------------------
+echo "🚀 Launching Athen.ai Platform..."
+echo "   FastAPI on http://localhost:8000"
+echo "   Streamlit on http://localhost:8501"
 
 python main_script_orgid.py &
 MAIN_PID=$!
 
 sleep 5
+
 if ! kill -0 $MAIN_PID 2>/dev/null; then
-    echo "❌ Main application failed to start"
-    exit 1
+  echo "❌ App failed to start"
+  exit 1
 fi
 
-# ---------------------------
-# 9. Verify App is Running
-# ---------------------------
-if health_check; then
-    echo "🎉 Athen.ai Healthcare RAG Platform is running successfully!"
-    echo "=================================================="
-    echo "📊 Dashboard: http://localhost:8501"
-    echo "📖 API Documentation: http://localhost:8000/docs"
-    echo "🔧 Health Check: http://localhost:8000/health"
-    echo "=================================================="
-else
-    echo "❌ Platform failed health check"
-    kill $MAIN_PID 2>/dev/null
-    exit 1
-fi
+# -------------------------------
+# 6. Health Check
+# -------------------------------
+echo "🔍 Checking /health endpoint..."
+for i in {1..30}; do
+  if curl -s http://localhost:8000/health &> /dev/null; then
+    echo "✅ Health check passed"
+    break
+  else
+    echo "⏳ Waiting for app (attempt $i)..."
+    sleep 2
+  fi
+done
 
-# ---------------------------
-# 10. Keep Script Running
-# ---------------------------
+# -------------------------------
+# 7. Ready!
+# -------------------------------
+echo "🎉 Athen.ai is live!"
+echo "📖 API Docs: http://localhost:8000/docs"
+echo "📊 Streamlit: http://localhost:8501"
+echo "🔧 Health: http://localhost:8000/health"
+echo "=============================================="
+
+# Keep the app running
 wait $MAIN_PID
