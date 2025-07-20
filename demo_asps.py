@@ -25,8 +25,11 @@ import torch
 from torch.utils.data import Dataset
 
 # --- Environment Variables ---
-from dotenv import load_dotenv
-load_dotenv()  # ✅ Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()  # ✅ Load environment variables from .env file
+except ImportError:
+    print("⚠️ dotenv not installed - using system environment variables")
 
 HF_TOKEN = os.getenv("HF_TOKEN")
 RAG_API_KEY = os.getenv("RAG_API_KEY")
@@ -825,20 +828,26 @@ def generate_rag_answer_with_context(user_question, context_chunks, mistral_toke
     if not answer.endswith(('.', '!', '?')):
         answer += "."
 
-    # Hallucination filter: check token overlap with context
+    # Improved hallucination filter: check token overlap with context
     answer_tokens = set(re.findall(r"\b\w+\b", answer.lower()))
     context_tokens = set(re.findall(r"\b\w+\b", context.lower()))
     overlap = answer_tokens & context_tokens
     overlap_score = len(overlap) / max(1, len(answer_tokens))
+    
+    print(f"🔍 Hallucination check - Overlap score: {overlap_score:.2f}")
 
-    if overlap_score < 0.35:
-        logging.warning("⚠️ Low token overlap — likely hallucination.")
+    # Unified threshold of 0.25 for both clinical and navigation questions
+    min_threshold = 0.25  # Unified threshold for both clinical and navigation
+    
+    # Only trigger fallback for very low overlap (likely complete hallucination)
+    if overlap_score < min_threshold:
+        logging.warning(f"⚠️ Very low token overlap ({overlap_score:.2f}) — likely hallucination.")
         if intent == "navigation":
             return ("I don't have enough reliable information to provide accurate guidance about this specific website navigation question. "
                    "Rather than potentially mislead you, I recommend getting current information directly from:\n\n"
                    "📍 **plasticsurgery.org** - Visit the official site for the most up-to-date features\n"
                    "🔍 **Site search** - Use their search function for specific topics\n"
-                   "� **ASPS support** - Call (847) 228-9900 for personalized website assistance\n"
+                   "📞 **ASPS support** - Call (847) 228-9900 for personalized website assistance\n"
                    "� **Live chat** - Check if they offer live support for navigation questions\n\n"
                    "This ensures you get accurate, current information about their website resources and tools.")
         else:
@@ -850,6 +859,8 @@ def generate_rag_answer_with_context(user_question, context_chunks, mistral_toke
                    "📞 **ASPS surgeon referral** - Call (847) 228-9900 to find qualified specialists in your area\n"
                    "🌐 **ASPS patient education resources** - Visit plasticsurgery.org for verified patient information\n\n"
                    "Your health and safety are my top priorities - professional medical consultation is always the most reliable path for clinical guidance.")
+    else:
+        print(f"✅ Answer passed hallucination check with {overlap_score:.2f} overlap")
 
     return answer
 
@@ -908,7 +919,7 @@ def evaluate_on_examples(model, tokenizer, sample_questions, save_path="eval_out
 
             # Step 3: Compute token overlap
             overlap_score = token_overlap_score(answer, context_combined)
-            hallucinated = overlap_score < 0.35
+            hallucinated = overlap_score < 0.25  # Use same improved threshold
 
             if hallucinated:
                 logging.warning(f"⚠️ Token Overlap = {overlap_score:.2f} — potential hallucination.")
@@ -1089,7 +1100,7 @@ def verify_clinical_training_setup():
     
     # Check GitHub JSON files accessibility
     github_repo = "swolmer/athena-rag-api"  # Your repository
-    github_branch = "asps_demo"  # Use the correct branch
+    github_branch = "asps_demo"  # Use the correct branch where files are located
     github_base_url = f"https://raw.githubusercontent.com/{github_repo}/{github_branch}"
     
     for filename in github_json_files:
@@ -2183,56 +2194,6 @@ def load_github_knowledge_bases_into_memory(org_id="asps"):
         
         return True
         
-        print(f"📊 Processed knowledge base:")
-        print(f"   📚 Clinical chunks: {len(clinical_chunks)}")
-        print(f"   🧭 Navigation chunks: {len(navigation_chunks)}")
-        
-        # Build FAISS indexes
-        print(f"🔢 Building FAISS indexes...")
-        
-        # Clinical index
-        if clinical_chunks:
-            clinical_embeddings = embed_model.encode(clinical_chunks, show_progress_bar=True)
-            clinical_index = faiss.IndexFlatL2(clinical_embeddings.shape[1])
-            clinical_index.add(np.array(clinical_embeddings))
-        else:
-            print("⚠️ No clinical chunks found")
-            clinical_chunks = ["No clinical data available"]
-            clinical_embeddings = embed_model.encode(clinical_chunks)
-            clinical_index = faiss.IndexFlatL2(clinical_embeddings.shape[1])
-            clinical_index.add(np.array(clinical_embeddings))
-        
-        # Navigation index
-        if navigation_chunks:
-            navigation_embeddings = embed_model.encode(navigation_chunks, show_progress_bar=True)
-            navigation_index = faiss.IndexFlatL2(navigation_embeddings.shape[1])
-            navigation_index.add(np.array(navigation_embeddings))
-        else:
-            print("⚠️ No navigation chunks found")
-            navigation_chunks = ["No navigation data available"]
-            navigation_embeddings = embed_model.encode(navigation_chunks)
-            navigation_index = faiss.IndexFlatL2(navigation_embeddings.shape[1])
-            navigation_index.add(np.array(navigation_embeddings))
-        
-        # Store in global memory (dual index format)
-        ORG_FAISS_INDEXES[org_id] = {
-            "clinical": clinical_index,
-            "navigation": navigation_index
-        }
-        ORG_CHUNKS[org_id] = {
-            "clinical": clinical_chunks,
-            "navigation": navigation_chunks
-        }
-        ORG_EMBEDDINGS[org_id] = {
-            "clinical": clinical_embeddings,
-            "navigation": navigation_embeddings
-        }
-        
-        print(f"✅ Successfully loaded GitHub knowledge bases into memory!")
-        print(f"🎯 Ready for clinical and navigation queries!")
-        
-        return True
-        
     except Exception as e:
         print(f"❌ Failed to load GitHub knowledge bases: {e}")
         traceback.print_exc()
@@ -2316,6 +2277,34 @@ async def chatbot_ui():
                 background: white; color: #333; border: 1px solid #e0e0e0;
                 border-bottom-left-radius: 4px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);
             }
+            
+            /* Enhanced answer formatting styles */
+            .knowledge-indicator {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white; padding: 6px 12px; border-radius: 15px;
+                font-size: 12px; margin-bottom: 10px; display: inline-block;
+            }
+            .clinical-section, .nav-section {
+                margin: 8px 0; padding: 8px 0; border-left: 3px solid #007bff;
+                padding-left: 12px;
+            }
+            .clinical-section {
+                border-left-color: #28a745; background: #f8fff8;
+            }
+            .nav-section {
+                border-left-color: #17a2b8; background: #f0f8ff;
+            }
+            .safety-item, .info-item {
+                margin: 6px 0; padding: 4px 0; display: block;
+            }
+            .safety-item {
+                padding: 6px 8px; background: #fff3cd; border-radius: 6px;
+                border-left: 3px solid #ffc107; margin: 4px 0;
+            }
+            .info-item {
+                padding: 4px 8px; background: #e3f2fd; border-radius: 4px;
+                margin: 3px 0;
+            }
             .chat-input-container {
                 padding: 20px; background: white; border-top: 1px solid #e0e0e0;
                 display: flex; gap: 10px;
@@ -2359,9 +2348,16 @@ async def chatbot_ui():
                 background: #e3f2fd; color: #1976d2; border: 1px solid #1976d2;
                 border-radius: 15px; cursor: pointer; font-size: 12px;
                 transition: all 0.3s;
+                pointer-events: auto;  /* Ensure buttons are clickable */
+                z-index: 10;          /* Ensure buttons are on top */
+                position: relative;   /* Enable z-index */
             }
             .question-button:hover {
                 background: #1976d2; color: white;
+                transform: scale(1.02); /* Visual feedback for hover */
+            }
+            .question-button:active {
+                transform: scale(0.98); /* Visual feedback for click */
             }
             .status-indicator {
                 position: absolute; top: 10px; right: 10px; padding: 5px 10px;
@@ -2375,7 +2371,7 @@ async def chatbot_ui():
         <div class="chat-container">
             <div class="chat-header">
                 <div class="status-indicator" id="statusIndicator">🔄 Connecting...</div>
-                <h1>🩺 ASPS Medical AI Assistant</h1>
+                <h1>🩺 ASPS Medical Assistant</h1>
                 <p>Clinical knowledge & website navigation powered by Mistral-7B</p>
             </div>
             
@@ -2421,7 +2417,24 @@ async def chatbot_ui():
 
         <script>
             let isWaitingForResponse = false;
-            const apiUrl = window.location.origin;
+
+            // Auto-detect RunPod URL - use current host and port
+            let apiUrl;
+            if (window.location.host.includes('runpod.net') || window.location.host.includes('proxy.runpod.net')) {
+                // We're on RunPod - use the current URL
+                apiUrl = window.location.origin;
+                console.log('🔗 RunPod detected - using current origin:', apiUrl);
+            } else if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+                // Local development
+                apiUrl = window.location.protocol + '//' + window.location.hostname + ':19524';
+                console.log('🔗 Local development detected:', apiUrl);
+            } else {
+                // Fallback - use current host
+                apiUrl = window.location.origin;
+                console.log('🔗 Using current origin as fallback:', apiUrl);
+            }
+
+            console.log('🌐 Final API URL:', apiUrl);
 
             // Check server status on load
             checkServerStatus();
@@ -2431,11 +2444,22 @@ async def chatbot_ui():
                     .then(response => response.json())
                     .then(data => {
                         const indicator = document.getElementById('statusIndicator');
-                        if (data.org_loaded) {
-                            indicator.textContent = '✅ Online';
+                        if (data.system_ready) {
+                            // System is fully ready with all models and data loaded
+                            const totalChunks = data.total_chunks || 0;
+                            indicator.textContent = `✅ Ready (${totalChunks} chunks)`;
                             indicator.className = 'status-indicator status-online';
+                        } else if (data.org_loaded) {
+                            // Data loaded but models may still be loading
+                            indicator.textContent = '🔄 Models Loading';
+                            indicator.className = 'status-indicator status-offline';
+                        } else if (data.status === 'initializing') {
+                            // System is initializing
+                            indicator.textContent = '⚠️ Initializing';
+                            indicator.className = 'status-indicator status-offline';
                         } else {
-                            indicator.textContent = '⚠️ Loading';
+                            // System has issues
+                            indicator.textContent = '❌ Error';
                             indicator.className = 'status-indicator status-offline';
                         }
                     })
@@ -2443,6 +2467,7 @@ async def chatbot_ui():
                         const indicator = document.getElementById('statusIndicator');
                         indicator.textContent = '❌ Offline';
                         indicator.className = 'status-indicator status-offline';
+                        console.error('Health check failed:', error);
                     });
             }
 
@@ -2454,8 +2479,19 @@ async def chatbot_ui():
             }
 
             function askQuestion(question) {
-                document.getElementById('chatInput').value = question;
-                sendMessage();
+                console.log('askQuestion called with:', question);
+                try {
+                    const inputElement = document.getElementById('chatInput');
+                    if (!inputElement) {
+                        console.error('chatInput element not found!');
+                        return;
+                    }
+                    inputElement.value = question;
+                    console.log('Input value set, calling sendMessage...');
+                    sendMessage();
+                } catch (error) {
+                    console.error('Error in askQuestion:', error);
+                }
             }
 
             function addMessage(content, isUser = false) {
@@ -2530,22 +2566,77 @@ async def chatbot_ui():
             }
 
             function formatAnswer(answer) {
-                // Format both clinical and navigation answers with better styling
+                // Enhanced formatting for comprehensive clinical and navigation answers
                 return answer
-                    // Clinical format
-                    .replace(/✅ Summary:/g, '<strong>✅ Summary:</strong>')
-                    .replace(/🧠 Anatomy & Physiology:/g, '<br><strong>🧠 Anatomy & Physiology:</strong>')
-                    .replace(/🔧 Procedure or Technique:/g, '<br><strong>🔧 Procedure or Technique:</strong>')
-                    .replace(/⚠️ Pitfalls & Pearls:/g, '<br><strong>⚠️ Pitfalls & Pearls:</strong>')
-                    // Navigation format
-                    .replace(/📍 Direct Answer:/g, '<strong>📍 Direct Answer:</strong>')
-                    .replace(/🔗 Where to Find:/g, '<br><strong>🔗 Where to Find:</strong>')
-                    .replace(/💡 Additional Help:/g, '<br><strong>💡 Additional Help:</strong>')
-                    .replace(/\\n/g, '<br>');
+                    // Handle knowledge type indicators with styling
+                    .replace(/\[Using (CLINICAL|NAVIGATION) knowledge\]/g, '<div class="knowledge-indicator"><strong>[$1 KNOWLEDGE]</strong></div>')
+                    
+                    // Clinical format sections
+                    .replace(/✅ Summary:/g, '<div class="clinical-section"><strong>✅ Summary:</strong>')
+                    .replace(/🧠 Anatomy & Physiology:/g, '</div><div class="clinical-section"><strong>🧠 Anatomy & Physiology:</strong>')
+                    .replace(/🔧 Procedure or Technique:/g, '</div><div class="clinical-section"><strong>🔧 Procedure or Technique:</strong>')
+                    .replace(/⚠️ Pitfalls & Pearls:/g, '</div><div class="clinical-section"><strong>⚠️ Pitfalls & Pearls:</strong>')
+                    
+                    // Navigation format sections
+                    .replace(/📍 Direct Answer:/g, '<div class="nav-section"><strong>📍 Direct Answer:</strong>')
+                    .replace(/🔗 How to Find It:/g, '</div><div class="nav-section"><strong>🔗 How to Find It:</strong>')
+                    .replace(/💡 Additional Help:/g, '</div><div class="nav-section"><strong>💡 Additional Help:</strong>')
+                    
+                    // Safety/comprehensive response formatting
+                    .replace(/🩺 \*\*(.*?)\*\*/g, '<div class="safety-item">🩺 <strong>$1</strong>')
+                    .replace(/📚 \*\*(.*?)\*\*/g, '<div class="safety-item">📚 <strong>$1</strong>')
+                    .replace(/🏥 \*\*(.*?)\*\*/g, '<div class="safety-item">🏥 <strong>$1</strong>')
+                    .replace(/📞 \*\*(.*?)\*\*/g, '<div class="safety-item">📞 <strong>$1</strong>')
+                    .replace(/🌐 \*\*(.*?)\*\*/g, '<div class="safety-item">🌐 <strong>$1</strong>')
+                    .replace(/💬 \*\*(.*?)\*\*/g, '<div class="safety-item">💬 <strong>$1</strong>')
+                    
+                    // Simple emoji formatting for other items
+                    .replace(/🩺 /g, '<div class="info-item">🩺 ')
+                    .replace(/📚 /g, '<div class="info-item">📚 ')
+                    .replace(/🏥 /g, '<div class="info-item">🏥 ')
+                    .replace(/📞 /g, '<div class="info-item">📞 ')
+                    .replace(/📍 /g, '<div class="info-item">📍 ')
+                    .replace(/🔍 /g, '<div class="info-item">🔍 ')
+                    .replace(/🌐 /g, '<div class="info-item">🌐 ')
+                    .replace(/💬 /g, '<div class="info-item">💬 ')
+                    
+                    // Close any open divs and handle line breaks
+                    .replace(/\n\n/g, '</div><br>')
+                    .replace(/\n/g, '</div>')
+                    .replace(/\\n/g, '<br>') + '</div>'; // Close final div
             }
 
             // Check status every 30 seconds
             setInterval(checkServerStatus, 30000);
+            
+            // Add event listeners to buttons as backup
+            document.addEventListener('DOMContentLoaded', function() {
+                console.log('DOM loaded, setting up button listeners...');
+                
+                // Add click listeners to all question buttons
+                const questionButtons = document.querySelectorAll('.question-button');
+                console.log('Found', questionButtons.length, 'question buttons');
+                
+                questionButtons.forEach((button, index) => {
+                    button.addEventListener('click', function(e) {
+                        console.log('Button clicked via event listener:', index);
+                        const question = this.getAttribute('data-question') || this.textContent;
+                        if (this.onclick) {
+                            console.log('Calling original onclick handler...');
+                            this.onclick();
+                        } else {
+                            console.log('No onclick found, extracting question from onclick attribute...');
+                            const onclickAttr = this.getAttribute('onclick');
+                            if (onclickAttr) {
+                                const questionMatch = onclickAttr.match(/askQuestion\('([^']*)'\)/);
+                                if (questionMatch) {
+                                    askQuestion(questionMatch[1]);
+                                }
+                            }
+                        }
+                    });
+                });
+            });
         </script>
     </body>
     </html>
@@ -2557,13 +2648,60 @@ async def api_info():
 
 @app.get("/health")
 async def health_check():
-    return {
-        "status": "healthy",
-        "cuda_available": torch.cuda.is_available(),
-        "device": str(torch.device("cuda" if torch.cuda.is_available() else "cpu")),
-        "gpu_name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "None",
-        "org_loaded": "asps" in ORG_FAISS_INDEXES
-    }
+    """Enhanced health check with detailed system status"""
+    try:
+        # Check FAISS indexes status
+        asps_loaded = "asps" in ORG_FAISS_INDEXES
+        clinical_count = 0
+        navigation_count = 0
+        
+        if asps_loaded:
+            clinical_chunks = ORG_CHUNKS.get("asps", {}).get("clinical", [])
+            navigation_chunks = ORG_CHUNKS.get("asps", {}).get("navigation", [])
+            clinical_count = len(clinical_chunks)
+            navigation_count = len(navigation_chunks)
+        
+        # Check model status
+        models_loaded = {
+            "tokenizer": tokenizer is not None,
+            "rag_model": rag_model is not None, 
+            "embed_model": embed_model is not None
+        }
+        
+        return {
+            "status": "healthy" if asps_loaded else "initializing",
+            "timestamp": str(torch.tensor(0).device),  # Simple way to get current timestamp
+            
+            # Hardware info
+            "cuda_available": torch.cuda.is_available(),
+            "device": str(torch.device("cuda" if torch.cuda.is_available() else "cpu")),
+            "gpu_name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "None",
+            
+            # Data status  
+            "org_loaded": asps_loaded,
+            "clinical_chunks_count": clinical_count,
+            "navigation_chunks_count": navigation_count,
+            "total_chunks": clinical_count + navigation_count,
+            
+            # Model status
+            "models_loaded": models_loaded,
+            "all_models_ready": all(models_loaded.values()),
+            
+            # System readiness
+            "system_ready": asps_loaded and all(models_loaded.values()),
+            
+            # API info
+            "endpoints": ["/", "/api", "/health", "/query", "/api/chat", "/sample-questions"],
+            "port": int(os.environ.get("PORT", 19524))
+        }
+        
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e),
+            "cuda_available": torch.cuda.is_available() if 'torch' in globals() else False,
+            "system_ready": False
+        }
 
 @app.post("/query", response_model=QueryResponse)
 async def query_asps_rag(request: QueryRequest):
@@ -2627,7 +2765,18 @@ async def get_sample_questions():
             "Describe the steps involved in the placement of a tissue expander after mastectomy.",
             "What precautions must be taken to avoid injury to the peroneal nerve during fibula flap harvest?",
             "How is the Allen's test used in the preoperative assessment of the radial forearm flap?",
-            "What are the differences between craniofacial and mandibular plates?"
+            "What are the differences between craniofacial and mandibular plates?",
+            "What portion of the serratus anterior muscle is typically harvested for the flap?",
+            "Why is the distal 6 cm of the fibula preserved during flap harvest?",
+            
+            # Navigation questions
+            "Where can I find information about breast augmentation costs?",
+            "How do I locate a plastic surgeon in my area?",
+            "Where are the before and after photos on the ASPS website?",
+            "How do I navigate to patient safety information?",
+            "Where can I read about the risks of cosmetic surgery?",
+            "How do I find recovery information for tummy tucks?",
+            "Where is the Find a Surgeon tool located?"
         ]
     }
 
@@ -2651,7 +2800,8 @@ def initialize_asps_system():
             if load_github_knowledge_bases_into_memory(org_id):
                 print("✅ Knowledge bases loaded and indexed successfully!")
             else:
-                print("⚠️ Failed to load JSON knowledge bases - building fallback indexes...")
+                print("❌ Failed to load knowledge bases into memory")
+                print("🔄 Falling back to local content and building basic indexes...")
                 build_clinical_navigation_indexes(org_id)
                 load_clinical_navigation_indexes(org_id)
         else:
@@ -2675,7 +2825,7 @@ def initialize_asps_system():
                 else:
                     print("🏗️ Building new clinical/navigation indexes from local content...")
                     result = build_clinical_navigation_indexes(org_id)
-                    print(f"✅ Built new indexes:")
+                    print("✅ Built new indexes:")
                     print(f"   📚 Clinical chunks: {result['clinical_chunks']}")
                     print(f"   🧭 Navigation chunks: {result['navigation_chunks']}")
         
@@ -2701,7 +2851,6 @@ def initialize_asps_system():
         
     except Exception as e:
         print(f"❌ Failed to initialize ASPS RAG system: {e}")
-        import traceback
         traceback.print_exc()
         # Continue without crashing - the health endpoint will show the error
 
@@ -2718,28 +2867,27 @@ if __name__ == "__main__":
     print("   📚 Clinical: PDFs/DOCX in clinical_training/ directory")
     print("   🧭 Navigation: ASPS website content via knowledge bases")
     print("")
-    print("🔧 Key Components:")
-    print("   🎯 classify_question_intent() - Routes questions")
-    print("   📚 build_clinical_navigation_indexes() - Dual FAISS setup")
-    print("   🔍 retrieve_context() - Intent-based retrieval")
-    print("   🤖 generate_rag_answer_with_context() - Response generation")
-    print("")
-    print("💡 Example Questions:")
-    print("   Clinical: 'What are the key operative techniques for breast reconstruction?'")
-    print("   Navigation: 'How do I use the Find a Surgeon tool on plasticsurgery.org?'")
-    print("")
     
     # Initialize ASPS system
     initialize_asps_system()
     
-    # Start FastAPI server
+    # Start the FastAPI server
+    print("🚀 Starting FastAPI server...")
+    print(f"🌐 Access the web interface at your RunPod URL")
+    print(f"📱 API endpoints available at /api, /health, /query")
+    
+    # RunPod typically uses these ports
+    port = int(os.environ.get("PORT", 19524))  # Use PORT env var or default
+    
+    # Print connection info
     print("\n🌐 Starting ASPS Demo API server...")
-    print("📍 Server will be available at: http://213.173.110.81:19524")
-    print("📖 API docs at: http://213.173.110.81:19524/docs")
-    print("🏥 Health check at: http://213.173.110.81:19524/health")
-    print("🔗 RunPod External Access: Connect via TCP port 213.173.110.81:19524")
+    print(f"📍 Server will be available at: http://0.0.0.0:{port}")
+    print(f"📖 API docs at: http://0.0.0.0:{port}/docs")
+    print(f"🏥 Health check at: http://0.0.0.0:{port}/health")
+    print("🔗 RunPod External Access: Use your RunPod's external URL")
     print("\n✅ SYSTEM READY FOR CLINICAL/NAVIGATION DIFFERENTIATION!")
-    uvicorn.run(app, host="0.0.0.0", port=19524)
+    
+    uvicorn.run(app, host="0.0.0.0", port=port)
 
 # ============================
 # 📋 SYSTEM DOCUMENTATION
@@ -2785,8 +2933,10 @@ FILES CREATED:
 - Web API with automatic routing
 
 TESTING:
-- Clinical: "What is rhinoplasty recovery like?"
-- Navigation: "How much does a nose job cost?"
+- Clinical: "What are the key operative techniques for breast reconstruction?"
+
+- Navigation: "How do I use the Find a Surgeon tool on plasticsurgery.org?"
+
 - System automatically routes to correct knowledge base
 
 DEPLOYMENT:
