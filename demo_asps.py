@@ -1605,7 +1605,7 @@ def extract_text_from_pdf(pdf_path):
         with fitz.open(pdf_path) as pdf:
             return "".join([page.get_text() for page in pdf])
     except Exception as e:
-        print(f"❌ PDF extraction failed for {pdf_path}: {e}")
+        logging.error(f"❌ PDF extraction failed for {pdf_path}: {e}")
         return ""
 
 def extract_text_from_docx(docx_path):
@@ -1615,7 +1615,7 @@ def extract_text_from_docx(docx_path):
         doc = Document(docx_path)
         return "\n".join([p.text for p in doc.paragraphs])
     except Exception as e:
-        print(f"❌ DOCX extraction failed for {docx_path}: {e}")
+        logging.error(f"❌ DOCX extraction failed for {docx_path}: {e}")
         return ""
 
 def extract_text_from_image(image_path):
@@ -2295,9 +2295,9 @@ def load_github_knowledge_bases_into_memory(org_id="asps"):
         navigation_chunks = list(dict.fromkeys(navigation_chunks))
         
         # ============================
-        # 📚 STEP 3: LOAD CLINICAL TRAINING DIRECTORIES
+        # 📚 STEP 3: LOAD CLINICAL TRAINING DIRECTORIES (SIMPLE PROVEN APPROACH)
         # ============================
-        print("📚 Loading clinical training directories for CLINICAL FAISS...")
+        print("📚 Loading clinical training directories using simple proven approach from working code...")
         
         # Define all clinical training directories that should be loaded
         clinical_training_dirs = [
@@ -2309,7 +2309,7 @@ def load_github_knowledge_bases_into_memory(org_id="asps"):
             "clinical"
         ]
         
-        # Look for clinical directories in base path (after GitHub clone)
+        # Use the simple, proven approach that works
         for dir_name in clinical_training_dirs:
             # First try in org_data/asps/ (copied location)
             potential_dir = os.path.join(paths["base"], dir_name)
@@ -2321,28 +2321,30 @@ def load_github_knowledge_bases_into_memory(org_id="asps"):
             if os.path.exists(potential_dir):
                 print(f"✅ Found clinical directory: {dir_name}")
                 
-                # Process all PDF and DOCX files in this directory
+                # Use the EXACT approach from your working code
                 for root, _, files in os.walk(potential_dir):
                     for file in files:
                         file_path = os.path.join(root, file)
                         
                         if file.endswith(".pdf"):
-                            print(f"   📄 Processing clinical PDF: {file}")
+                            print(f"   📄 Processing PDF: {file}")
                             raw_text = extract_text_from_pdf(file_path)
-                            if raw_text:
-                                chunks = chunk_text_by_words(raw_text)
-                                valid_chunks = [c for c in chunks if is_valid_chunk(c)]
-                                clinical_chunks.extend(valid_chunks)
-                                print(f"      Added {len(valid_chunks)} chunks from {file}")
-                        
                         elif file.endswith(".docx"):
-                            print(f"   📝 Processing clinical DOCX: {file}")
+                            print(f"   📝 Processing DOCX: {file}")
                             raw_text = extract_text_from_docx(file_path)
-                            if raw_text:
-                                chunks = chunk_text_by_words(raw_text)
-                                valid_chunks = [c for c in chunks if is_valid_chunk(c)]
-                                clinical_chunks.extend(valid_chunks)
-                                print(f"      Added {len(valid_chunks)} chunks from {file}")
+                        elif file.lower().endswith((".png", ".jpg", ".jpeg")):
+                            print(f"   🖼️ Processing image: {file}")
+                            raw_text = extract_text_from_image(file_path)
+                        else:
+                            continue
+                        
+                        if raw_text and raw_text.strip():
+                            chunks = chunk_text_by_words(raw_text, max_words=800)
+                            valid_chunks = [c for c in chunks if is_valid_chunk(c)]
+                            clinical_chunks.extend(valid_chunks)
+                            print(f"      ✅ Added {len(valid_chunks)} chunks from {file}")
+                        else:
+                            print(f"      ⚠️ No text extracted from {file}")
             else:
                 print(f"⚠️ Clinical directory not found: {dir_name} (checked both org_data/asps/ and repository root)")
         
