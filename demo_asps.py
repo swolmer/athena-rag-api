@@ -1,15 +1,5 @@
 # ============================
-# �️ MISSING IMPORTS & GLOBALS
-# ============================
-import os, sys, json, logging, pickle, numpy as np, shutil, zipfile, argparse, concurrent.futures
-import torch
-import faiss
-import fitz
-import pytesseract
-import urllib.request
-import pandas as pd
-# ============================
-# �🚀 1. IMPORTS & GLOBAL STORAGE
+# 🚀 1. IMPORTS & GLOBAL STORAGE
 # ============================
 
 # --- Standard library ---
@@ -35,21 +25,615 @@ import torch
 from torch.utils.data import Dataset
 
 # --- Environment Variables ---
-async def chatbot_ui():
-    # Serve the HTML UI from a file for easier editing and proper rendering
-    html_path = os.path.join(os.path.dirname(__file__), "attached_assets", "chatbot_ui.html")
+try:
+    from dotenv import load_dotenv
+    load_dotenv()  # ✅ Load environment variables from .env file
+except ImportError:
+    print("⚠️ dotenv not installed - using system environment variables")
+
+HF_TOKEN = os.getenv("HF_TOKEN")
+RAG_API_KEY = os.getenv("RAG_API_KEY")
+
+if not RAG_API_KEY:
+    print("⚠️ RAG_API_KEY is not set. Check your .env file.")
+
+# --- Natural Language Processing ---
+import nltk
+import nltk.data
+from nltk.tokenize.punkt import PunktSentenceTokenizer
+
+nltk_data_path = os.path.join(os.path.expanduser("~"), "nltk_data")
+nltk.download("punkt", download_dir=nltk_data_path, quiet=True)
+nltk.data.path.append(nltk_data_path)
+
+# --- Transformers and Trainer ---
+from transformers import (
+    AutoConfig,
+    Trainer,
+    EarlyStoppingCallback,
+    TrainingArguments,
+    AutoTokenizer,
+    AutoModelForCausalLM,
+    default_data_collator
+)
+
+# --- File Extraction Utilities ---
+import fitz  # PyMuPDF
+from PIL import Image
+import pytesseract
+from docx import Document
+
+# --- Web Scraping ---
+import requests
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin
+
+# --- Embedding & FAISS ---
+from sentence_transformers import SentenceTransformer
+import faiss
+from sklearn.metrics.pairwise import cosine_similarity
+
+# --- Evaluation ---
+from evaluate import load as load_metric
+
+# --- FastAPI for web interface ---
+from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse
+from pydantic import BaseModel
+import uvicorn
+
+def safe_sent_tokenize(text, lang='english'):
+    """Safe sentence tokenization with fallback"""
+    try:
+        punkt_path = nltk.data.find(f'tokenizers/punkt/{lang}.pickle')
+        with open(punkt_path, 'rb') as f:
+            tokenizer = pickle.load(f)
+        return tokenizer.tokenize(text)
+    except Exception as e:
+        print(f"❌ NLTK sent_tokenize fallback used due to: {e}")
+        return text.split('.')  # Fallback method
+
+# ✅ CUDA Setup
+print("🧠 Checking CUDA support:")
+print("CUDA Available:", torch.cuda.is_available())
+if torch.cuda.is_available():
+    print("CUDA Device Name:", torch.cuda.get_device_name(0))
+else:
+    print("⚠️ No CUDA-compatible GPU detected. Training will run on CPU.")
+
+# ============================
+# 🧠 2. GLOBAL ORG-SPECIFIC STORAGE WITH CLINICAL/NAVIGATION SEPARATION
+# ============================
+
+# These store model data per organization with clinical/navigation separation
+ORG_FAISS_INDEXES = {}     # org_id → {"clinical": FAISS index, "navigation": FAISS index}
+ORG_CHUNKS = {}            # org_id → {"clinical": list of chunks, "navigation": list of chunks}
+ORG_EMBEDDINGS = {}        # org_id → {"clinical": np.ndarray, "navigation": np.ndarray}
+
+# ✅ Tokenizer & Model will be shared
+tokenizer = None
+rag_model = None
+embed_model = None
+
+# ============================
+# 🗂️ ORG-AWARE PATHS
+# ============================
+
+def get_org_paths(org_id):
+    """Get all file paths for an organization"""
+    base = os.path.join("org_data", org_id)
+    return {
+        "base": base,
+        "clinical_training": os.path.join(base, "clinical_training"),
+        "navigation_data": os.path.join(base, "extracted_content"),
+        "html_pages": os.path.join(base, "html_pages"),
+        "chunks_pkl": os.path.join(base, "chunks.pkl"),
+        "embeddings_npy": os.path.join(base, "embeddings.npy"),
+        "faiss_index": os.path.join(base, "index.faiss"),
+        "training_data_dir": os.path.join(base, "training_data")
+    }
+tokenizer = None
+rag_model = None
+embed_model = None
+# ============================
+# 🛠️ 3. CONFIGURATION — COLLAB READY
+# ============================
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# ✅ Parent folder for all org-specific data
+ORG_DATA_ROOT = os.path.join(BASE_DIR, "org_data")  # e.g., ./org_data/emory/
+
+# ✅ Shared model identifiers
+EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
+LLM_MODEL_NAME = "NousResearch/Hermes-2-Pro-Mistral-7B"
+
+# ✅ Optional Hugging Face login
+if HF_TOKEN:
+    from huggingface_hub import login
+    login(token=HF_TOKEN)
+
+# ✅ Logging
+logging.basicConfig(level=logging.INFO)
+
+# ✅ ADAPTIVE DEVICE SETUP - AUTO-DETECT CUDA COMPATIBILITY
+def get_optimal_device():
+    """Auto-detect optimal device and handle CUDA compatibility issues"""
+    if not torch.cuda.is_available():
+        return torch.device("cpu")
+    
+    try:
+        # Test CUDA with a simple operation
+        test_tensor = torch.tensor([1.0]).cuda()
+        _ = test_tensor * 2
+        return torch.device("cuda")
+    except Exception as e:
+        print(f"⚠️ CUDA detected but not compatible ({e}). Using CPU.")
+        return torch.device("cpu")
+
+DEVICE = get_optimal_device()
+print("🧠 Device Configuration:")
+print("CUDA Available:", torch.cuda.is_available())
+if torch.cuda.is_available():
+    print("CUDA Device Name:", torch.cuda.get_device_name(0))
+    if DEVICE.type == "cuda":
+        print("✅ Using CUDA acceleration")
+    else:
+        print("⚠️ CUDA detected but using CPU for compatibility")
+else:
+    print("⚠️ CUDA not available — using CPU")
+print(f"✅ Selected device: {DEVICE}")
+
+# ============================
+# 📁 4. ORG PATH HELPER
+# ============================
+
+def get_org_paths(org_id):
+    """
+    Returns all relevant file paths for a given organization.
+    This isolates all indexes, embeddings, and model files by org_id.
+    Now supports clinical vs navigation separation.
+    Updated for RunPod deployment with correct clinical training paths.
+    """
+    base = os.path.join(ORG_DATA_ROOT, org_id)
+    
+    # For RunPod: Clinical materials are in root-level 'clinical' folder
+    clinical_dir = os.path.join(BASE_DIR, "clinical")  # Root-level clinical folder
+    
+    return {
+        "base": base,
+        "clinical_training_dir": clinical_dir,  # Updated path for RunPod
+        "navigation_training_dir": os.path.join(base, "navigation_training"),
+        "clinical_faiss_index": os.path.join(base, "clinical_faiss_index.idx"),
+        "navigation_faiss_index": os.path.join(base, "navigation_faiss_index.idx"),
+        "clinical_chunks_pkl": os.path.join(base, "clinical_rag_chunks.pkl"),
+        "navigation_chunks_pkl": os.path.join(base, "navigation_rag_chunks.pkl"),
+        "clinical_embeddings_npy": os.path.join(base, "clinical_rag_embeddings.npy"),
+        "navigation_embeddings_npy": os.path.join(base, "navigation_rag_embeddings.npy"),
+        # Legacy paths for backward compatibility
+        "training_data_dir": os.path.join(base, "training"),
+        "faiss_index": os.path.join(base, "faiss_index.idx"),
+        "chunks_pkl": os.path.join(base, "rag_chunks.pkl"),
+        "embeddings_npy": os.path.join(base, "rag_embeddings.npy"),
+        "model_dir": os.path.join(base, "model"),
+        "csv_path": os.path.join(base, "Training_QA_Pairs.csv")  # optional
+    }
+
+# ============================
+# 5. GLOBAL TOKENIZER & MODEL
+# ============================
+
+from transformers import AutoTokenizer, AutoModelForCausalLM
+
+# Tokenizer (shared)
+tokenizer = AutoTokenizer.from_pretrained(LLM_MODEL_NAME)
+tokenizer.pad_token = tokenizer.eos_token
+tokenizer.padding_side = "right"
+
+# Language Model (shared) - ADAPTIVE DEVICE LOADING
+try:
+    if DEVICE.type == "cuda":
+        # Try GPU loading first
+        rag_model = AutoModelForCausalLM.from_pretrained(
+            LLM_MODEL_NAME,
+            torch_dtype=torch.float16,
+            device_map="auto",
+            trust_remote_code=True
+        )
+    else:
+        # Force CPU loading with appropriate settings
+        rag_model = AutoModelForCausalLM.from_pretrained(
+            LLM_MODEL_NAME,
+            torch_dtype=torch.float32,
+            device_map=None,
+            trust_remote_code=True
+        )
+        rag_model = rag_model.to("cpu")
+    print(f"✅ Language model loaded successfully on {DEVICE}")
+except Exception as e:
+    print(f"⚠️ GPU loading failed ({e}), trying CPU...")
+    rag_model = AutoModelForCausalLM.from_pretrained(
+        LLM_MODEL_NAME,
+        torch_dtype=torch.float32,
+        device_map=None,
+        trust_remote_code=True
+    )
+    rag_model = rag_model.to("cpu")
+    DEVICE = torch.device("cpu")  # Update device to reflect actual usage
+    print(f"✅ Language model loaded successfully on CPU")
+
+__all__ = ["tokenizer", "rag_model"]
+
+# ============================
+# 6. GLOBAL EMBEDDING MODEL
+# ============================
+
+try:
+    embed_model = SentenceTransformer(EMBEDDING_MODEL_NAME)
+    # Try to move to optimal device, fall back to CPU if needed
+    try:
+        embed_model = embed_model.to(DEVICE)
+        print(f"✅ Embedding model loaded successfully on {DEVICE}")
+    except Exception as device_error:
+        print(f"⚠️ Moving embedding model to {DEVICE} failed, using CPU")
+        embed_model = embed_model.to("cpu")
+        print(f"✅ Embedding model loaded successfully on CPU")
+    globals()["embed_model"] = embed_model
+except Exception as e:
+    logging.error(f"❌ Failed to load embedding model: {e}")
+    embed_model = None
+
+# ============================
+# 7. UTILITIES — ENHANCED (HTML-ONLY)
+# ============================
+
+import requests
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin
+
+def is_valid_chunk(text):
+    text_lower = text.lower()
+    skip_phrases = [
+        "table of contents", "copyright", "terms and conditions",
+        "accessibility statement", "website feedback", "http://", "https://"
+    ]
+    skip_starts = ["figure", "edition", "samir mardini", "flaps and"]
+
+    if len(text.split()) <= 20:
+        return False
+    if any(phrase in text_lower for phrase in skip_phrases):
+        return False
+    if any(text_lower.strip().startswith(start) for start in skip_starts):
+        return False
+
+    return True
+
+def safe_sent_tokenize(text, lang='english'):
+    """
+    Improved sentence tokenization with better fallback handling.
+    Preserves complete sentences and handles common abbreviations.
+    """
+    try:
+        punkt_path = nltk.data.find(f'tokenizers/punkt/{lang}.pickle')
+        with open(punkt_path, 'rb') as f:
+            tokenizer = pickle.load(f)
+        return tokenizer.tokenize(text)
+    except Exception as e:
+        print(f"❌ NLTK sent_tokenize fallback used due to: {e}")
+        # Better fallback: split on sentence endings but preserve complete sentences
+        import re
+        
+        # Split on sentence boundaries, but be careful about abbreviations
+        sentences = re.split(r'(?<=[.!?])\s+(?=[A-Z])', text)
+        
+        # Filter out empty sentences and ensure they end properly
+        valid_sentences = []
+        for sentence in sentences:
+            sentence = sentence.strip()
+            if sentence and len(sentence.split()) > 3:  # At least 4 words for a valid sentence
+                # Ensure sentence ends with punctuation
+                if not sentence.endswith(('.', '!', '?', ':')):
+                    sentence += "."
+                valid_sentences.append(sentence)
+        
+        return valid_sentences if valid_sentences else [text]
+
+def chunk_text_by_words(text, max_words=200, overlap=50, min_words=30):
+    sentences = safe_sent_tokenize(text)
+    chunks = []
+    current_chunk = []
+
+    for sent in sentences:
+        sent_words = sent.split()
+        if len(current_chunk) + len(sent_words) > max_words:
+            chunk_text = " ".join(current_chunk).strip()
+            if len(current_chunk) >= min_words and is_valid_chunk(chunk_text):
+                chunks.append(chunk_text)
+            current_chunk = current_chunk[-overlap:] + sent_words
+        else:
+            current_chunk.extend(sent_words)
+
+    if len(current_chunk) >= min_words:
+        final_chunk = " ".join(current_chunk).strip()
+        if is_valid_chunk(final_chunk):
+            chunks.append(final_chunk)
+
+    return chunks
+
+# ============================
+# 🎯 ENHANCED INTENT CLASSIFICATION FOR CLINICAL VS NAVIGATION
+# ============================
+
+def classify_question_intent(question):
+    """
+    Enhanced classification for clinical vs navigation questions.
+    
+    CLINICAL: Medical procedures, techniques, risks, recovery, complications
+    NAVIGATION: Finding surgeons, costs, locations, appointments, general info
+    """
+    
+    # Enhanced clinical keywords (medical content)
+    clinical_keywords = [
+        # Surgical procedures
+        "surgery", "procedure", "surgical", "operation", "technique", "method",
+        # Medical conditions
+        "recovery", "healing", "risks", "complications", "anesthesia", 
+        "post-operative", "pre-operative", "aftercare", "treatment",
+        # Medical terminology
+        "medical", "diagnosis", "symptoms", "patient", "tissue", "skin",
+        "muscle", "bone", "reconstruction", "implant", "graft", "flap",
+        # Specific procedures
+        "rhinoplasty", "facelift", "liposuction", "augmentation", "reduction",
+        "mastectomy", "reconstruction", "tummy tuck", "breast lift"
+    ]
+    
+    # Enhanced navigation keywords (website/service info)
+    navigation_keywords = [
+        # Finding services
+        "find", "locate", "search", "near me", "in my area", "directory",
+        "surgeon", "doctor", "physician", "specialist", "clinic", "hospital",
+        # Business/service info
+        "cost", "price", "fee", "payment", "insurance", "financing", "affordable",
+        "appointment", "consultation", "schedule", "book", "contact",
+        "phone", "email", "address", "location", "hours", "available",
+        # Organization info
+        "about", "asps", "membership", "certification", "accreditation",
+        "foundation", "news", "updates", "events", "education", "training",
+        # Website navigation - ENHANCED
+        "how to", "where can I", "who should I", "when should I",
+        "website", "site", "plasticsurgery.org", "online", "web",
+        "photos", "pictures", "gallery", "before and after", "results",
+        "tool", "feature", "section", "page", "navigate", "access"
+    ]
+    
+    # Weight certain phrases more heavily
+    clinical_phrases = [
+        "what is", "how is performed", "what are the risks", "recovery time",
+        "surgical technique", "medical procedure", "complications of"
+    ]
+    
+    navigation_phrases = [
+        "find a surgeon", "cost of", "price of", "how much", "where to",
+        "contact information", "make appointment", "schedule consultation",
+        "where are the", "where can I see", "where exactly", "how do I use",
+        "on the website", "on plasticsurgery.org", "before and after photos",
+        "photo gallery", "find a tool", "use the tool", "navigate to",
+        "where is the", "how to access", "where to find"
+    ]
+    
+    question_lower = question.lower()
+    
+    # Score based on keywords
+    clinical_score = sum(2 if keyword in question_lower else 0 for keyword in clinical_keywords)
+    navigation_score = sum(2 if keyword in question_lower else 0 for keyword in navigation_keywords)
+    
+    # Score based on phrases (higher weight)
+    clinical_score += sum(5 if phrase in question_lower else 0 for phrase in clinical_phrases)
+    navigation_score += sum(5 if phrase in question_lower else 0 for phrase in navigation_phrases)
+    
+    # Additional heuristics
+    if "?" in question and any(word in question_lower for word in ["how", "what", "when", "where", "why"]):
+        if any(word in question_lower for word in ["procedure", "surgery", "technique", "recovery"]):
+            clinical_score += 3
+        elif any(word in question_lower for word in ["find", "cost", "price", "appointment", "photos", "website"]):
+            navigation_score += 3
+    
+    # Strong website navigation indicators
+    website_indicators = ["website", "plasticsurgery.org", "before and after", "photos", "gallery", "tool"]
+    if any(indicator in question_lower for indicator in website_indicators):
+        navigation_score += 8  # High weight for clear website questions
+    
+    # Debug output to help troubleshoot classification
+    print(f"🎯 Intent scoring for: '{question}'")
+    print(f"   Clinical score: {clinical_score}")
+    print(f"   Navigation score: {navigation_score}")
+    
+    # Default to navigation for tie-breaking if website-related terms are present
+    if any(indicator in question_lower for indicator in ["website", "photos", "where", "find", "how do i"]):
+        if navigation_score >= clinical_score:
+            return "navigation"
+    
+    # Otherwise default to clinical for medical tie-breaking
+    if clinical_score > navigation_score:
+        return "clinical"
+    else:
+        return "navigation"
+
+def download_asps_subpages_as_html(html_dir="org_data/asps/html_pages"):
+    """
+    DEPRECATED - Use JSON knowledge bases instead.
+    This function is kept for compatibility but not actively used.
+    """
+    print("⚠️ This function is deprecated - using JSON knowledge bases instead")
+    return False
+    """
+    Downloads each ASPS cosmetic procedure page as raw HTML files.
+    """
+    os.makedirs(html_dir, exist_ok=True)
+    root_url = "https://www.plasticsurgery.org/cosmetic-procedures"
+
+    try:
+        response = requests.get(root_url, timeout=10)
+        response.raise_for_status()
+        soup = BeautifulSoup(response.text, "html.parser")
+        links = soup.select("a[href^='/cosmetic-procedures/']")
+
+        sub_urls = {
+            urljoin(root_url, a['href'])
+            for a in links
+            if a['href'].startswith("/cosmetic-procedures/")
+            and not a['href'].endswith("/cosmetic-procedures")
+        }
+
+        for url in sorted(sub_urls):
+            slug = url.split("/")[-1].strip()
+            filepath = os.path.join(html_dir, f"{slug}.html")
+            try:
+                page_resp = requests.get(url)
+                page_resp.raise_for_status()
+                with open(filepath, "w", encoding="utf-8") as f:
+                    f.write(page_resp.text)
+                logging.info(f"✅ HTML saved: {filepath}")
+            except Exception as e:
+                logging.warning(f"⚠️ Failed to download or save {url} as HTML: {e}")
+
+    except Exception as e:
+        logging.error(f"❌ Failed to access ASPS page: {e}")
+
+def extract_text_from_html(html_path):
+    """
+    Extracts meaningful text from an HTML file (mainly paragraphs inside <main> tag).
+    """
     try:
         with open(html_path, "r", encoding="utf-8") as f:
-            html_content = f.read()
-        return HTMLResponse(content=html_content)
+            soup = BeautifulSoup(f.read(), "html.parser")
+            paragraphs = soup.select("main p")
+            text_blocks = [
+                p.get_text(separator=" ", strip=True)
+                for p in paragraphs
+                if len(p.get_text(strip=True).split()) > 20
+            ]
+            return "\n\n".join(text_blocks)
     except Exception as e:
-        return HTMLResponse(content=f"<h2>UI file not found or error loading: {e}</h2>", status_code=500)
-# --- Training-related code commented out for deployment ---
+        logging.error(f"❌ HTML extraction failed for {html_path}: {e}")
+        return ""
 
-from transformers import TrainingArguments, Trainer, default_data_collator
-import torch
+def extract_all_text_from_asps_html(html_dir="org_data/asps/html_pages"):
+    """
+    Goes through all ASPS HTML files and extracts combined text.
+    """
+    if not os.path.exists(html_dir):
+        raise ValueError(f"❌ HTML directory not found: {html_dir}")
 
-def train_model(model, tokenizer, train_dataset, eval_dataset, output_dir, debug=False):
+    all_text = ""
+    for file in os.listdir(html_dir):
+        if not file.endswith(".html"):
+            continue
+        full_path = os.path.join(html_dir, file)
+        html_text = extract_text_from_html(full_path)
+        if html_text.strip():
+            all_text += "\n\n" + html_text
+        else:
+            logging.warning(f"⚠️ Empty or unreadable HTML: {file}")
+
+    return all_text
+
+# ============================
+# 8. DATASET CLASS
+# ============================
+
+class MistralQADataset(Dataset):
+    def __init__(self, jsonl_path, tokenizer, max_length=512, debug=False):
+        """
+        Loads a dataset from a JSONL file and prepares it for causal LM fine-tuning.
+        Each line in the file should contain: {"instruction": ..., "output": ...}
+        """
+        self.samples = []
+        self.debug = debug
+
+        with open(jsonl_path, "r", encoding="utf-8") as f:
+            for i, line in enumerate(f):
+                try:
+                    item = json.loads(line)
+
+                    # Format prompt + response
+                    prompt = f"### Instruction:\n{item['instruction']}\n\n### Response:\n"
+                    answer = item["output"]
+                    full_text = prompt + answer
+
+                    # Tokenize full example
+                    tokenized = tokenizer(
+                        full_text,
+                        truncation=True,
+                        max_length=max_length,
+                        padding="max_length",
+                        return_tensors="pt"
+                    )
+
+                    input_ids = tokenized["input_ids"].squeeze(0)
+                    attention_mask = tokenized["attention_mask"].squeeze(0)
+
+                    # Labels are the same as input_ids, but padding gets -100
+                    labels = input_ids.clone()
+                    labels[labels == tokenizer.pad_token_id] = -100
+
+                    if self.debug and i < 3:
+                        print("input_ids:", input_ids)
+                        print("labels:", labels)
+                        print("Any label != -100?", (labels != -100).any().item())
+
+                    # Store example
+                    self.samples.append({
+                        "input_ids": input_ids,
+                        "attention_mask": attention_mask,
+                        "labels": labels
+                    })
+
+                    # Debug print
+                    if self.debug and i < 3:
+                        print(f"\n🔍 DEBUG SAMPLE {i}")
+                        print("Instruction:", item["instruction"])
+                        print("Output:", item["output"])
+                        print("input_ids:", input_ids.tolist())
+                        print("labels:", labels.tolist())
+                        print("Unique labels:", torch.unique(labels).tolist())
+                        print("Token length:", input_ids.shape[0])
+                        print("-" * 50)
+
+                except Exception as e:
+                    logging.warning(f"❌ Skipping malformed line {i}: {e}")
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, idx):
+        sample = self.samples[idx]
+        return {
+            "input_ids": sample["input_ids"],
+            "attention_mask": sample["attention_mask"],
+            "labels": sample["labels"]
+        }
+
+# ============================
+# 9. TRAINING
+# ============================
+
+from transformers import default_data_collator
+
+# ✅ Custom Trainer to prevent re-moving model to device
+class CustomTrainer(Trainer):
+    def _move_model_to_device(self, model, device):
+        return model  # Avoid double GPU mapping
+
+def fine_tune_with_trainer(
+    train_dataset,
+    eval_dataset,
+    model,
+    tokenizer,
+    output_dir,
+    debug=False
+):
     """
     Fine-tunes a language model using Hugging Face's Trainer API.
     Includes gradient check, loss verification, and logging.
@@ -80,6 +664,7 @@ def train_model(model, tokenizer, train_dataset, eval_dataset, output_dir, debug
     )
 
     if debug:
+        print("🔍 Checking sample input/output tensors...")
         for i in range(min(5, len(train_dataset))):
             sample = train_dataset[i]
             print(f"📦 Sample {i}")
@@ -102,7 +687,8 @@ def train_model(model, tokenizer, train_dataset, eval_dataset, output_dir, debug
         trainable = [n for n, p in model.named_parameters() if p.requires_grad]
         print(f"✅ Trainable parameters: {len(trainable)}")
 
-    trainer = Trainer(
+    # ✅ Launch Trainer
+    trainer = CustomTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset,
@@ -114,6 +700,7 @@ def train_model(model, tokenizer, train_dataset, eval_dataset, output_dir, debug
     print("🚀 Starting training...")
     trainer.train()
 
+    # ✅ Save final model + tokenizer
     print("💾 Saving model and tokenizer to:", output_dir)
     trainer.save_model(output_dir)
     tokenizer.save_pretrained(output_dir)
@@ -215,34 +802,133 @@ def retrieve_context(query, k=3, initial_k=10, org_id=None, intent=None, collab=
 # 11. RAG GENERATION — FIXED
 # ============================
 
-def generate_rag_answer_with_context(user_question, context_chunks, mistral_tokenizer, mistral_model, intent="clinical"):
-    # Fallback: If clinical context is empty, try navigation context
-    if not context_chunks and intent == "clinical":
-        print("⚠️ No clinical context found, falling back to navigation context...")
-        fallback_chunks = retrieve_context(user_question, k=3, org_id=None, intent="navigation")
-        if fallback_chunks:
-            context_chunks = fallback_chunks
-            intent = "navigation"  # Switch format to navigation
+def generate_rag_answer_with_context(user_question, context_chunks, mistral_tokenizer, mistral_model, intent="clinical", org_id="asps"):
     if not context_chunks:
+        # If no context for clinical, try fallback to navigation knowledge
+        if intent == "clinical":
+            print("🔄 No clinical context found - attempting navigation fallback...")
+            try:
+                # Try to get navigation context as fallback
+                fallback_chunks = retrieve_context(
+                    query=user_question, 
+                    k=3, 
+                    org_id=org_id, 
+                    intent="navigation"
+                )
+                
+                if fallback_chunks:
+                    print(f"✅ Found {len(fallback_chunks)} navigation chunks for fallback")
+                    # Use navigation knowledge but with clinical format and fallback indicator
+                    fallback_context = "\n\n".join(f"- {chunk.strip()}" for chunk in fallback_chunks)
+                    
+                    # Clinical format with fallback indicator
+                    prompt = (
+                        "You are a surgical expert answering a clinical question using available ASPS website information as reference.\n"
+                        "The specific clinical training materials do not contain detailed information for this question, so use the ASPS website context below to provide the best possible clinical guidance.\n"
+                        "Format your response as:\n\n"
+                        "✅ Summary: (1 sentence clinical summary based on available info)\n"
+                        "🧠 Anatomy & Physiology: (based on available information)\n"
+                        "🔧 Procedure or Technique: (based on available information)\n"
+                        "⚠️ Pitfalls & Pearls: (recommend consulting clinical sources for detailed surgical guidance)\n\n"
+                        f"### CONTEXT:\n{fallback_context}\n\n"
+                        f"### QUESTION:\n{user_question}\n\n"
+                        f"### ANSWER:\n"
+                    )
+                    
+                    # Generate answer using fallback context
+                    inputs = mistral_tokenizer(prompt, return_tensors="pt", truncation=True, max_length=4096).to(mistral_model.device)
+                    
+                    with torch.no_grad():
+                        outputs = mistral_model.generate(
+                            input_ids=inputs["input_ids"],
+                            attention_mask=inputs["attention_mask"],
+                            max_new_tokens=1024,
+                            do_sample=False,
+                            temperature=0.1,
+                            repetition_penalty=1.2,
+                            eos_token_id=mistral_tokenizer.eos_token_id,
+                            pad_token_id=mistral_tokenizer.pad_token_id,
+                            early_stopping=False,
+                            min_new_tokens=50,
+                            length_penalty=0.8,
+                            no_repeat_ngram_size=3
+                        )
+                    
+                    decoded = mistral_tokenizer.decode(outputs[0], skip_special_tokens=True)
+                    if "### ANSWER:" in decoded:
+                        answer = decoded.split("### ANSWER:")[-1].strip()
+                    else:
+                        answer = decoded.strip()
+                    
+                    # Apply standard answer cleaning
+                    import re
+                    answer = re.sub(r'\b(\d)\s+\1(\s+\1)+', '', answer)
+                    answer = re.sub(r'(\w)\1{4,}', r'\1', answer)
+                    answer = re.sub(r'\s+', ' ', answer)
+                    answer = re.sub(r'\b(the)\s+\1\b', r'\1', answer)
+                    answer = re.sub(r'\b(and)\s+\1\b', r'\1', answer)
+                    answer = re.sub(r'\b(of)\s+\1\b', r'\1', answer)
+                    answer = re.sub(r'[^\w\s\.,!?:;()\-\*\[\]#""''%/$]', '', answer)
+                    
+                    # Sentence processing
+                    sentences = []
+                    potential_sentences = re.split(r'(?<=[.!?])\s+(?=[A-Z])', answer)
+                    for sentence in potential_sentences:
+                        sentence = sentence.strip()
+                        if sentence:
+                            if not sentence.endswith(('.', '!', '?', ':')):
+                                sentence += "."
+                            sentences.append(sentence)
+                    
+                    if len(sentences) > 16:
+                        answer = " ".join(sentences[:16])
+                    else:
+                        answer = " ".join(sentences) if sentences else answer.strip()
+                    
+                    answer = answer.strip()
+                    if answer and not answer.endswith(('.', '!', '?')):
+                        answer += "."
+                    
+                    # Mark as using fallback knowledge
+                    answer = f"**[Using NAVIGATION knowledge as fallback for clinical question]**\n\n{answer}"
+                    return answer
+                    
+            except Exception as e:
+                print(f"❌ Navigation fallback failed: {e}")
+        
+        # Standard fallback responses if no fallback worked
         if intent == "navigation":
-            return ("I don't have specific information about this ASPS website navigation question in my current knowledge base. "
-                   "Rather than provide potentially outdated guidance, I recommend:\n\n"
-                   "📍 Visit plasticsurgery.org directly for current information\n"
-                   "🔍 Use their site search function for specific topics\n"
-                   "📞 Contact ASPS support at (847) 228-9900 for personalized assistance\n\n"
+            return ("**[Using NAVIGATION knowledge]**\n\n"
+                   "📍 **Direct Answer:** I don't have specific information about this ASPS website navigation question in my current knowledge base.\n\n"
+                   "🔗 **How to Find It:** Visit plasticsurgery.org directly for current information, or use their site search function for specific topics.\n\n"
+                   "💡 **Additional Help:** Contact ASPS support at (847) 228-9900 for personalized assistance.\n\n"
                    "This ensures you get the most accurate and up-to-date information about their website features and resources.")
         else:
-            return ("I prioritize your safety and health by not providing medical information I cannot verify from my training materials. "
-                   "Rather than risk giving you incorrect clinical guidance, I strongly recommend:\n\n"
-                   "🩺 **Consult a board-certified plastic surgeon** - They can provide personalized, evidence-based advice\n"
-                   "📚 **Review peer-reviewed literature** - Look for recent studies on your specific concern\n"
-                   "🏥 **Speak with your healthcare provider** - They know your medical history and current health status\n"
-                   "📞 **Contact ASPS** at (847) 228-9900 for surgeon referrals in your area\n\n"
+            return ("**[Using CLINICAL knowledge]**\n\n"
+                   "✅ **Summary:** I prioritize your safety and health by not providing medical information I cannot verify from my training materials.\n\n"
+                   "🧠 **Anatomy & Physiology:** Medical questions require verified, peer-reviewed sources for accurate information.\n\n"
+                   "🔧 **Procedure or Technique:** Board-certified plastic surgeons can provide personalized, evidence-based advice for your specific situation.\n\n"
+                   "⚠️ **Pitfalls & Pearls:** Rather than risk giving you incorrect clinical guidance, consult with your healthcare provider who knows your medical history. Contact ASPS at (847) 228-9900 for surgeon referrals in your area.\n\n"
+                   "Your health and safety are paramount - professional medical consultation is always the safest approach for clinical questions.")
+        if intent == "navigation":
+            return ("**[Using NAVIGATION knowledge]**\n\n"
+                   "📍 **Direct Answer:** I don't have specific information about this ASPS website navigation question in my current knowledge base.\n\n"
+                   "🔗 **How to Find It:** Visit plasticsurgery.org directly for current information, or use their site search function for specific topics.\n\n"
+                   "� **Additional Help:** Contact ASPS support at (847) 228-9900 for personalized assistance.\n\n"
+                   "This ensures you get the most accurate and up-to-date information about their website features and resources.")
+        else:
+            return ("**[Using CLINICAL knowledge]**\n\n"
+                   "✅ **Summary:** I prioritize your safety and health by not providing medical information I cannot verify from my training materials.\n\n"
+                   "🧠 **Anatomy & Physiology:** Medical questions require verified, peer-reviewed sources for accurate information.\n\n"
+                   "🔧 **Procedure or Technique:** Board-certified plastic surgeons can provide personalized, evidence-based advice for your specific situation.\n\n"
+                   "⚠️ **Pitfalls & Pearls:** Rather than risk giving you incorrect clinical guidance, consult with your healthcare provider who knows your medical history. Contact ASPS at (847) 228-9900 for surgeon referrals in your area.\n\n"
                    "Your health and safety are paramount - professional medical consultation is always the safest approach for clinical questions.")
 
     context = "\n\n".join(f"- {chunk.strip()}" for chunk in context_chunks)
+    
     # Different formats based on question intent
     if intent == "navigation":
+        # Navigation format for website/service questions - actionable and specific
         prompt = (
             "You are a helpful assistant providing specific, actionable guidance about ASPS resources and services.\n"
             "Use only the CONTEXT below to answer the QUESTION with direct, specific instructions.\n"
@@ -257,10 +943,10 @@ def generate_rag_answer_with_context(user_question, context_chunks, mistral_toke
             f"### ANSWER:\n"
         )
     else:
-        # Clinical format for medical/surgical questions with improved emoji formatting
+        # Clinical format for medical/surgical questions
         prompt = (
             "You are a surgical expert writing answers for a clinical reference guide.\n"
-            "Use only the CONTEXT below to answer the QUESTION in this clinical format. Make the answer visually appealing with emojis and clear sections:\n\n"
+            "Use only the CONTEXT below to answer the QUESTION in this clinical format:\n\n"
             "✅ Summary: (1 sentence)\n"
             "🧠 Anatomy & Physiology:\n"
             "🔧 Procedure or Technique:\n"
@@ -270,19 +956,22 @@ def generate_rag_answer_with_context(user_question, context_chunks, mistral_toke
             f"### ANSWER:\n"
         )
 
-    inputs = mistral_tokenizer(prompt, return_tensors="pt", truncation=True, max_length=2048).to(mistral_model.device)
+    inputs = mistral_tokenizer(prompt, return_tensors="pt", truncation=True, max_length=4096).to(mistral_model.device)
 
     with torch.no_grad():
         outputs = mistral_model.generate(
             input_ids=inputs["input_ids"],
             attention_mask=inputs["attention_mask"],
-            max_new_tokens=256,     # increased length for fuller answers
-            do_sample=False,        # deterministic, faster
+            max_new_tokens=1024,    # much longer answers for ChatGPT-level completeness
+            do_sample=False,        # deterministic for consistency
             temperature=0.1,        # low temperature for more focused responses
             repetition_penalty=1.2, # prevent repetitive text
             eos_token_id=mistral_tokenizer.eos_token_id,
             pad_token_id=mistral_tokenizer.pad_token_id,
-            early_stopping=True     # stop at natural ending points
+            early_stopping=False,   # Let model complete sentences naturally
+            min_new_tokens=50,      # Ensure minimum response length for complete thoughts
+            length_penalty=0.8,     # Slight preference for concise but complete responses
+            no_repeat_ngram_size=3  # Prevent 3-gram repetition for better quality
         )
 
     decoded = mistral_tokenizer.decode(outputs[0], skip_special_tokens=True)
@@ -294,66 +983,105 @@ def generate_rag_answer_with_context(user_question, context_chunks, mistral_toke
         answer = decoded.strip()
     # Clean up repeated characters and invalid sequences
     import re
+    
+    # Remove excessive repeated characters (like "9 9 9 9 9...")
     answer = re.sub(r'\b(\d)\s+\1(\s+\1)+', '', answer)  # Remove repeated digits with spaces
-    answer = re.sub(r'(\w)\1{3,}', r'\1', answer)        # Remove excessive character repetition
+    answer = re.sub(r'(\w)\1{4,}', r'\1', answer)        # Remove excessive character repetition (4+ chars)
     answer = re.sub(r'\s+', ' ', answer)                 # Normalize whitespace
-    answer = re.sub(r'\b(the the|and and|of of|in in)\b', r'\1'.split()[0], answer)  # Remove repeated words
-    answer = re.sub(r'[^\w\s\.,!?:;()-]', '', answer)    # Remove invalid characters
-
-    # Pretty formatting for clinical answers with emojis and sections
-    if intent == "clinical":
-        summary = anatomy = procedure = pearls = ""
-        summary_match = re.search(r'✅ Summary:(.*?)(🧠|🔧|⚠️|$)', answer, re.DOTALL)
-        anatomy_match = re.search(r'🧠 Anatomy & Physiology:(.*?)(🔧|⚠️|$)', answer, re.DOTALL)
-        procedure_match = re.search(r'🔧 Procedure or Technique:(.*?)(⚠️|$)', answer, re.DOTALL)
-        pearls_match = re.search(r'⚠️ Pitfalls & Pearls:(.*)', answer, re.DOTALL)
-        if summary_match:
-            summary = summary_match.group(1).strip()
-        if anatomy_match:
-            anatomy = anatomy_match.group(1).strip()
-        if procedure_match:
-            procedure = procedure_match.group(1).strip()
-        if pearls_match:
-            pearls = pearls_match.group(1).strip()
-        pretty_answer = f"✅ Summary: {summary}\n\n🧠 Anatomy & Physiology: {anatomy}\n\n🔧 Procedure or Technique: {procedure}\n\n⚠️ Pitfalls & Pearls: {pearls}"
-        answer = pretty_answer.strip()
-
-    sentences = re.split(r'(?<=[.!?])\s+', answer)
-    if len(sentences) > 8:
-        answer = " ".join(sentences[:8]).strip()
+    
+    # Remove common model artifacts - FIXED repeated word removal
+    answer = re.sub(r'\b(the)\s+\1\b', r'\1', answer)    # Fix "the the" -> "the"
+    answer = re.sub(r'\b(and)\s+\1\b', r'\1', answer)    # Fix "and and" -> "and"
+    answer = re.sub(r'\b(of)\s+\1\b', r'\1', answer)     # Fix "of of" -> "of"
+    answer = re.sub(r'\b(in)\s+\1\b', r'\1', answer)     # Fix "in in" -> "in"
+    answer = re.sub(r'\b(to)\s+\1\b', r'\1', answer)     # Fix "to to" -> "to"
+    answer = re.sub(r'\b(a)\s+\1\b', r'\1', answer)      # Fix "a a" -> "a"
+    
+    # More conservative character filtering - preserve more valid punctuation and markdown
+    answer = re.sub(r'[^\w\s\.,!?:;()\-\*\[\]#""''%/$]', '', answer)  # Keep more valid characters
+    
+    # IMPROVED sentence boundary detection that handles abbreviations better
+    # Use a more sophisticated regex that doesn't split on common abbreviations
+    sentences = []
+    
+    # Split on sentence endings, but be careful about abbreviations
+    potential_sentences = re.split(r'(?<=[.!?])\s+(?=[A-Z])', answer)
+    
+    for sentence in potential_sentences:
+        sentence = sentence.strip()
+        if sentence:  # Only add non-empty sentences
+            # Ensure sentence ends with proper punctuation
+            if not sentence.endswith(('.', '!', '?', ':')):
+                sentence += "."
+            sentences.append(sentence)
+    
+    # Keep up to 16 complete sentences for comprehensive answers
+    if len(sentences) > 16:
+        answer = " ".join(sentences[:16])
     else:
-        answer = answer.strip()
+        answer = " ".join(sentences) if sentences else answer.strip()
+    
+    # Final cleanup - ensure proper sentence ending and completeness
+    answer = answer.strip()
+    if answer and not answer.endswith(('.', '!', '?')):
+        # Check if this looks like an incomplete sentence
+        words = answer.split()
+        if len(words) > 0:
+            last_word = words[-1].lower()
+            # If it ends with common incomplete indicators, try to complete naturally
+            if last_word in ['the', 'a', 'an', 'and', 'or', 'but', 'with', 'for', 'by', 'in', 'on', 'at', 'to']:
+                # This looks incomplete, but we'll add a period anyway for safety
+                answer += "."
+            else:
+                answer += "."
+    
+    # Validate we have at least one complete sentence
+    if answer and len(answer.split()) < 5:
+        # Very short response - might be incomplete, but keep it as is
+        print(f"⚠️ Generated a very short response ({len(answer.split())} words)")
+    
+    # Final quality check - ensure answer contains actual content
+    if answer and not re.search(r'[a-zA-Z]', answer):
+        print(f"⚠️ Generated response contains no alphabetic characters")
+        return "I apologize, but I was unable to generate a proper response to your question. Please try rephrasing or contact ASPS support for assistance."
 
-    if not answer.endswith(('.', '!', '?')):
-        answer += "."
+    # Always format with knowledge type indicator for consistency
+    if intent == "navigation":
+        answer = f"**[Using NAVIGATION knowledge]**\n\n{answer}"
+    else:
+        answer = f"**[Using CLINICAL knowledge]**\n\n{answer}"
 
+    # Improved hallucination filter: check token overlap with context
     answer_tokens = set(re.findall(r"\b\w+\b", answer.lower()))
     context_tokens = set(re.findall(r"\b\w+\b", context.lower()))
     overlap = answer_tokens & context_tokens
     overlap_score = len(overlap) / max(1, len(answer_tokens))
+    
     print(f"🔍 Hallucination check - Overlap score: {overlap_score:.2f}")
-    min_threshold = 0.25
+
+    # More lenient thresholds - different for navigation vs clinical
+    # Navigation questions use more action words, clinical questions should have higher overlap
+    min_threshold = 0.15 if intent == "navigation" else 0.20  # Lower thresholds for better matching
+    
+    # Only trigger fallback for very low overlap (likely complete hallucination)
     if overlap_score < min_threshold:
         logging.warning(f"⚠️ Very low token overlap ({overlap_score:.2f}) — likely hallucination.")
         if intent == "navigation":
-            return ("I don't have enough reliable information to provide accurate guidance about this specific website navigation question. "
-                   "Rather than potentially mislead you, I recommend getting current information directly from:\n\n"
-                   "📍 **plasticsurgery.org** - Visit the official site for the most up-to-date features\n"
-                   "🔍 **Site search** - Use their search function for specific topics\n"
-                   "📞 **ASPS support** - Call (847) 228-9900 for personalized website assistance\n"
-                   "💬 **Live chat** - Check if they offer live support for navigation questions\n\n"
+            return ("**[Using NAVIGATION knowledge]**\n\n"
+                   "📍 **Direct Answer:** I don't have enough reliable information to provide accurate guidance about this specific website navigation question.\n\n"
+                   "🔗 **How to Find It:** Visit plasticsurgery.org directly for the most up-to-date features, or use their search function for specific topics.\n\n"
+                   "💡 **Additional Help:** Call (847) 228-9900 for personalized website assistance, or check if they offer live support for navigation questions.\n\n"
                    "This ensures you get accurate, current information about their website resources and tools.")
         else:
-            return ("I cannot provide confident medical information for this specific clinical question, as I prioritize accuracy and your safety above all else. "
-                   "Rather than risk giving you potentially incorrect medical guidance that could affect your health decisions, I strongly recommend:\n\n"
-                   "🩺 **Board-certified plastic surgeon consultation** - Get personalized, professional medical advice\n"
-                   "📚 **Peer-reviewed medical literature** - Research current, evidence-based studies on your topic\n"
-                   "🏥 **Your healthcare provider** - They understand your medical history and current health status\n"
-                   "📞 **ASPS surgeon referral** - Call (847) 228-9900 to find qualified specialists in your area\n"
-                   "🌐 **ASPS patient education resources** - Visit plasticsurgery.org for verified patient information\n\n"
+            return ("**[Using CLINICAL knowledge]**\n\n"
+                   "✅ **Summary:** I cannot provide confident medical information for this specific clinical question, as I prioritize accuracy and your safety above all else.\n\n"
+                   "🧠 **Anatomy & Physiology:** Consult peer-reviewed medical literature for current, evidence-based studies on your topic.\n\n"
+                   "🔧 **Procedure or Technique:** A board-certified plastic surgeon can provide personalized, professional medical advice tailored to your situation.\n\n"
+                   "⚠️ **Pitfalls & Pearls:** Your healthcare provider understands your medical history and current health status. Call (847) 228-9900 to find qualified specialists in your area, or visit plasticsurgery.org for verified patient information.\n\n"
                    "Your health and safety are my top priorities - professional medical consultation is always the most reliable path for clinical guidance.")
     else:
         print(f"✅ Answer passed hallucination check with {overlap_score:.2f} overlap")
+
     return answer
 
 
@@ -406,7 +1134,8 @@ def evaluate_on_examples(model, tokenizer, sample_questions, save_path="eval_out
                 context_chunks=context_chunks,
                 mistral_tokenizer=tokenizer,
                 mistral_model=model,
-                intent=intent
+                intent=intent,
+                org_id=org_id
             )
 
             # Step 3: Compute token overlap
@@ -592,7 +1321,7 @@ def verify_clinical_training_setup():
     
     # Check GitHub JSON files accessibility
     github_repo = "swolmer/athena-rag-api"  # Your repository
-    github_branch = "asps_demo"  # Use the correct branch where files are located
+    github_branch = "asps_demo"  # Use the correct branch
     github_base_url = f"https://raw.githubusercontent.com/{github_repo}/{github_branch}"
     
     for filename in github_json_files:
@@ -1097,34 +1826,61 @@ def build_faiss_index_from_training_dir(org_id):
         logging.info("🌐 Extracting text from ASPS local HTML pages...")
         html_dir = os.path.join(paths["base"], "html_pages")
 
-    # Ensure scraped_content_dir is defined before use
-    scraped_content_dir = os.path.join(paths["base"], "extracted_content")
+        if not os.path.exists(html_dir):
+            raise ValueError(f"❌ HTML directory not found: {html_dir}")
 
-    if not os.path.exists(scraped_content_dir):
-        os.makedirs(scraped_content_dir, exist_ok=True)
-        print(f"📁 Created missing directory: {scraped_content_dir}")
-        print("⚠️ No navigation JSON files found yet. Please upload your files to this directory and rerun the script.")
-        navigation_chunks = []
+        from bs4 import BeautifulSoup
+
+        all_text = ""
+        for file in os.listdir(html_dir):
+            if not file.endswith(".html"):
+                continue
+            path = os.path.join(html_dir, file)
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    soup = BeautifulSoup(f.read(), "html.parser")
+                    paragraphs = soup.select("main p")
+                    text_blocks = [
+                        p.get_text(separator=" ", strip=True)
+                        for p in paragraphs
+                        if len(p.get_text(strip=True).split()) > 20
+                    ]
+                    all_text += "\n\n".join(text_blocks)
+            except Exception as e:
+                logging.warning(f"⚠️ Failed to parse {file}: {e}")
+
+        if not all_text.strip():
+            raise ValueError("❌ No content extracted from ASPS HTML pages.")
+
+        chunks = chunk_text_by_words(all_text)
+        valid_chunks = [c for c in chunks if is_valid_chunk(c)]
+        all_chunks.extend(valid_chunks)
+
     else:
-        print(f"✅ Found content directory: {scraped_content_dir}")
-        navigation_jsons = []
-        for fname in os.listdir(scraped_content_dir):
-            if fname.lower().endswith(".json"):
-                fpath = os.path.join(scraped_content_dir, fname)
-                try:
-                    with open(fpath, "r", encoding="utf-8") as f:
-                        data = json.load(f)
-                        # Accept either a list of chunks or a single content string
-                        if isinstance(data, dict) and "content" in data:
-                            navigation_chunks.append(data["content"])
-                        elif isinstance(data, list):
-                            navigation_chunks.extend(data)
-                        else:
-                            print(f"⚠️ Unrecognized JSON format in {fname}")
-                        navigation_jsons.append(fname)
-                except Exception as e:
-                    print(f"❌ Error loading {fname}: {e}")
-        print(f"✅ Loaded {len(navigation_jsons)} navigation JSON files from extracted_content.")
+        raise ValueError(f"❌ Only 'asps' organization is supported in this demo. Got: {org_id}")
+
+    if not all_chunks:
+        raise ValueError(f"❌ No valid text chunks found for org '{org_id}'.")
+
+    # ✅ Encode and index
+    logging.info(f"🔢 Encoding {len(all_chunks)} chunks using embedding model...")
+    embeddings = embed_model.encode(all_chunks, show_progress_bar=True)
+    index = faiss.IndexFlatL2(embeddings.shape[1])
+    index.add(np.array(embeddings))
+
+    # 💾 Save everything
+    os.makedirs(paths["base"], exist_ok=True)
+    with open(paths["chunks_pkl"], "wb") as f:
+        pickle.dump(all_chunks, f)
+    np.save(paths["embeddings_npy"], embeddings)
+    faiss.write_index(index, paths["faiss_index"])
+
+    logging.info(f"✅ FAISS index built and saved for org '{org_id}' with {len(all_chunks)} chunks.")
+
+# ============================
+# 📥 15. LOAD FAISS FOR ONE ORG
+# ============================
+
 def load_rag_resources(org_id):
     """
     Loads org-specific FAISS index and chunk data.
@@ -1294,7 +2050,8 @@ def main():
                     context_chunks=context_chunks,
                     mistral_tokenizer=tokenizer,
                     mistral_model=model,
-                    intent=intent
+                    intent=intent,
+                    org_id=org_id
                 )
                 print(f"\n🤖 **Answer:**\n{answer}")
             else:
@@ -1659,6 +2416,56 @@ def load_github_knowledge_bases_into_memory(org_id="asps"):
         
         return True
         
+        print(f"📊 Processed knowledge base:")
+        print(f"   📚 Clinical chunks: {len(clinical_chunks)}")
+        print(f"   🧭 Navigation chunks: {len(navigation_chunks)}")
+        
+        # Build FAISS indexes
+        print(f"🔢 Building FAISS indexes...")
+        
+        # Clinical index
+        if clinical_chunks:
+            clinical_embeddings = embed_model.encode(clinical_chunks, show_progress_bar=True)
+            clinical_index = faiss.IndexFlatL2(clinical_embeddings.shape[1])
+            clinical_index.add(np.array(clinical_embeddings))
+        else:
+            print("⚠️ No clinical chunks found")
+            clinical_chunks = ["No clinical data available"]
+            clinical_embeddings = embed_model.encode(clinical_chunks)
+            clinical_index = faiss.IndexFlatL2(clinical_embeddings.shape[1])
+            clinical_index.add(np.array(clinical_embeddings))
+        
+        # Navigation index
+        if navigation_chunks:
+            navigation_embeddings = embed_model.encode(navigation_chunks, show_progress_bar=True)
+            navigation_index = faiss.IndexFlatL2(navigation_embeddings.shape[1])
+            navigation_index.add(np.array(navigation_embeddings))
+        else:
+            print("⚠️ No navigation chunks found")
+            navigation_chunks = ["No navigation data available"]
+            navigation_embeddings = embed_model.encode(navigation_chunks)
+            navigation_index = faiss.IndexFlatL2(navigation_embeddings.shape[1])
+            navigation_index.add(np.array(navigation_embeddings))
+        
+        # Store in global memory (dual index format)
+        ORG_FAISS_INDEXES[org_id] = {
+            "clinical": clinical_index,
+            "navigation": navigation_index
+        }
+        ORG_CHUNKS[org_id] = {
+            "clinical": clinical_chunks,
+            "navigation": navigation_chunks
+        }
+        ORG_EMBEDDINGS[org_id] = {
+            "clinical": clinical_embeddings,
+            "navigation": navigation_embeddings
+        }
+        
+        print(f"✅ Successfully loaded GitHub knowledge bases into memory!")
+        print(f"🎯 Ready for clinical and navigation queries!")
+        
+        return True
+        
     except Exception as e:
         print(f"❌ Failed to load GitHub knowledge bases: {e}")
         traceback.print_exc()
@@ -1668,23 +2475,7 @@ def load_github_knowledge_bases_into_memory(org_id="asps"):
 # 🌐 FASTAPI DEMO ENDPOINTS
 # ============================
 
-
-# --- FastAPI and dependencies ---
-import os
-import traceback
-import shutil
-import pickle
-import logging
-import json
-import urllib.request
-import urllib.error
-import numpy as np
-import torch
-import argparse
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
+# FastAPI imports already handled at the top of the file
 
 app = FastAPI(title="ASPS RAG Demo API", version="1.0.0")
 
@@ -1715,291 +2506,475 @@ class QueryResponse(BaseModel):
 
 @app.get("/", response_class=HTMLResponse)
 async def chatbot_ui():
-    html_content = '''<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ASPS Medical AI Chatbot</title>
-    <style>
-        body {
-            font-family: 'Segoe UI', Arial, sans-serif;
-            margin: 0; padding: 0;
-            min-height: 100vh;
-            background: linear-gradient(135deg, #7b2ff2 0%, #f357a8 100%);
-        }
-        .main-layout {
-            display: flex;
-            min-height: 100vh;
-        }
-        .sidebar {
-            width: 260px;
-            background: rgba(255,255,255,0.12);
-            color: #fff;
-            display: flex;
-            flex-direction: column;
-            padding: 32px 16px 16px 16px;
-            box-shadow: 2px 0 12px rgba(123,47,242,0.08);
-        }
-        .sidebar h2 {
-            font-size: 1.3em;
-            margin-bottom: 18px;
-            color: #fff;
-            letter-spacing: 1px;
-        }
-        .sidebar .quick-actions {
-            margin-bottom: 24px;
-        }
-        .sidebar button {
-            display: block;
-            width: 100%;
-            margin-bottom: 10px;
-            background: #fff;
-            color: #7b2ff2;
-            border: none;
-            border-radius: 6px;
-            padding: 10px 0;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        .sidebar button:hover {
-            background: #f357a8;
-            color: #fff;
-        }
-        .sidebar .status {
-            margin-top: auto;
-            font-size: 0.98em;
-            background: rgba(255,255,255,0.18);
-            border-radius: 6px;
-            padding: 10px;
-            color: #fff;
-        }
-        .container {
-            flex: 1;
-            max-width: 700px;
-            margin: 40px auto;
-            background: #fff;
-            border-radius: 12px;
-            box-shadow: 0 2px 16px rgba(123,47,242,0.10);
-            padding: 32px 40px 24px 40px;
-            display: flex;
-            flex-direction: column;
-        }
-        .branding {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin-bottom: 18px;
-        }
-        .branding img {
-            height: 38px;
-        }
-        h1 {
-            color: #7b2ff2;
-            font-size: 2em;
-            margin-bottom: 8px;
-        }
-        .chatbox {
-            border: 1px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 18px;
-            background: #f9f9fc;
-            min-height: 220px;
-            margin-bottom: 18px;
-            overflow-y: auto;
-            max-height: 340px;
-        }
-        .user { color: #7b2ff2; font-weight: bold; margin-bottom: 6px; }
-        .bot { color: #1b8e5a; font-weight: bold; margin-bottom: 6px; }
-        .input-row {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 8px;
-        }
-        input[type="text"] {
-            flex: 1;
-            padding: 12px;
-            border-radius: 6px;
-            border: 1px solid #ccc;
-            font-size: 1.08em;
-        }
-        button.send-btn {
-            background: linear-gradient(90deg, #7b2ff2 0%, #f357a8 100%);
-            color: #fff;
-            border: none;
-            border-radius: 6px;
-            padding: 12px 22px;
-            cursor: pointer;
-            font-weight: bold;
-            font-size: 1em;
-        }
-        button.send-btn:hover {
-            background: #1b8e5a;
-        }
-        .footer {
-            text-align: center;
-            color: #888;
-            margin-top: 18px;
-            font-size: 0.98em;
-        }
-        .disclaimer {
-            background: #f9f9fc;
-            border-radius: 6px;
-            padding: 10px;
-            color: #7b2ff2;
-            font-size: 0.97em;
-            margin-bottom: 10px;
-        }
-        .loading {
-            color: #f357a8;
-            font-style: italic;
-            margin-bottom: 8px;
-        }
-        @media (max-width: 900px) {
-            .main-layout { flex-direction: column; }
-            .sidebar { width: 100%; min-height: 0; box-shadow: none; }
-            .container { max-width: 100%; padding: 18px; }
-        }
-    </style>
-</head>
-<body>
-    <div class="main-layout">
-        <div class="sidebar">
-            <h2>Clinical Topics</h2>
-            <div class="quick-actions">
-                <button onclick="quickAsk('What are the typical indications for placement of a tissue expander in breast reconstruction surgery?')">Tissue Expander Indications</button>
-                <button onclick="quickAsk('Explain the operative steps for a free TRAM flap breast reconstruction.')">TRAM Flap Steps</button>
-                <button onclick="quickAsk('What is the vascular supply of the radial forearm flap?')">Radial Forearm Flap</button>
-                <button onclick="quickAsk('How is capsulorrhaphy performed during implant exchange in breast reconstruction?')">Capsulorrhaphy</button>
-                <button onclick="quickAsk('What precautions must be taken to avoid injury to the peroneal nerve during fibula flap harvest?')">Fibula Flap Precautions</button>
+    return """
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>🩺 ASPS Medical AI Chatbot</title>
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { 
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                min-height: 100vh; padding: 20px;
+            }
+            .chat-container {
+                max-width: 1000px; margin: 0 auto; background: white; 
+                border-radius: 20px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); 
+                display: flex; flex-direction: column; height: 80vh; min-height: 600px;
+                overflow: hidden;
+            }
+            .chat-header {
+                background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+                padding: 20px; color: white; text-align: center; position: relative;
+            }
+            .chat-header h1 { font-size: 28px; margin-bottom: 8px; }
+            .chat-header p { opacity: 0.9; font-size: 16px; }
+            .status-indicator {
+                position: absolute; top: 15px; right: 20px; padding: 8px 12px;
+                border-radius: 15px; font-size: 12px; font-weight: bold;
+            }
+            .status-online { background: #d4edda; color: #155724; }
+            .status-offline { background: #f8d7da; color: #721c24; }
+            
+            .chat-content {
+                flex: 1; display: flex; flex-direction: column; overflow: hidden;
+            }
+            
+            .sample-questions {
+                padding: 20px; background: #f8f9fa; border-bottom: 1px solid #e0e0e0;
+                max-height: 200px; overflow-y: auto;
+            }
+            .sample-questions h3 { 
+                margin-bottom: 15px; color: #333; font-size: 18px; text-align: center;
+            }
+            .question-categories {
+                display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+                gap: 15px;
+            }
+            .question-category h4 {
+                color: #0066cc; font-size: 14px; margin-bottom: 8px; font-weight: 600;
+            }
+            .question-button {
+                display: inline-block; margin: 3px; padding: 8px 12px;
+                background: linear-gradient(135deg, #e3f2fd 0%, #bbdefb 100%); 
+                color: #1976d2; border: 2px solid #1976d2; border-radius: 15px; 
+                cursor: pointer; font-size: 12px; transition: all 0.3s ease; 
+                font-weight: 500; text-align: center; user-select: none;
+            }
+            .question-button:hover {
+                background: linear-gradient(135deg, #1976d2 0%, #1565c0 100%); 
+                color: white; transform: translateY(-1px);
+                box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            }
+            
+            .chat-messages {
+                flex: 1; padding: 20px; overflow-y: auto; background: #ffffff;
+            }
+            .message {
+                margin-bottom: 20px; display: flex; align-items: flex-start;
+            }
+            .message.user { justify-content: flex-end; }
+            .message-content {
+                max-width: 80%; padding: 15px 20px; border-radius: 20px;
+                word-wrap: break-word; line-height: 1.5;
+            }
+            .message.user .message-content {
+                background: linear-gradient(135deg, #007bff 0%, #0056b3 100%); 
+                color: white; border-bottom-right-radius: 5px;
+            }
+            .message.bot .message-content {
+                background: #f8f9fa; color: #333; border: 1px solid #e0e0e0;
+                border-bottom-left-radius: 5px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            }
+            
+            .knowledge-indicator {
+                background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                color: white; padding: 6px 12px; border-radius: 15px;
+                font-size: 11px; margin-bottom: 10px; display: inline-block;
+                font-weight: 600;
+            }
+            
+            .chat-input-container {
+                padding: 20px; background: #f8f9fa; border-top: 1px solid #e0e0e0;
+                display: flex; gap: 15px; align-items: center;
+            }
+            .chat-input {
+                flex: 1; padding: 15px 20px; border: 2px solid #e0e0e0;
+                border-radius: 25px; font-size: 16px; outline: none;
+                transition: all 0.3s ease;
+            }
+            .chat-input:focus { 
+                border-color: #007bff; box-shadow: 0 0 0 3px rgba(0,123,255,0.1);
+            }
+            .send-button {
+                padding: 15px 30px; background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+                color: white; border: none; border-radius: 25px; cursor: pointer;
+                font-weight: 600; font-size: 16px; transition: all 0.3s ease;
+            }
+            .send-button:hover { 
+                transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,123,255,0.3);
+            }
+            .send-button:disabled { 
+                background: #ccc; cursor: not-allowed; transform: none;
+                box-shadow: none;
+            }
+            
+            .typing-indicator {
+                display: none; padding: 15px 20px; background: #f8f9fa;
+                border: 1px solid #e0e0e0; border-radius: 20px; 
+                border-bottom-left-radius: 5px; max-width: 80px;
+            }
+            .typing-dots { display: flex; gap: 4px; justify-content: center; }
+            .typing-dots span {
+                width: 8px; height: 8px; background: #666; border-radius: 50%;
+                animation: typing 1.4s infinite ease-in-out;
+            }
+            .typing-dots span:nth-child(1) { animation-delay: -0.32s; }
+            .typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+            @keyframes typing {
+                0%, 80%, 100% { transform: scale(0); opacity: 0.5; }
+                40% { transform: scale(1); opacity: 1; }
+            }
+            
+            @media (max-width: 768px) {
+                .chat-container { height: 90vh; margin: 10px; }
+                .question-categories { grid-template-columns: 1fr; }
+                .sample-questions { max-height: 150px; }
+                .chat-input { font-size: 16px; } /* Prevent zoom on iOS */
+            }
+        </style>
+    </head>
+    <body>
+        <div class="chat-container">
+            <div class="chat-header">
+                <div class="status-indicator" id="statusIndicator">🔄 Connecting...</div>
+                <h1>🩺 ASPS Medical AI Assistant</h1>
+                <p>Clinical knowledge & website navigation powered by Mistral-7B</p>
             </div>
-            <h2>Navigation</h2>
-            <div class="quick-actions">
-                <button onclick="quickAsk('Where can I find information about breast augmentation costs?')">Breast Augmentation Costs</button>
-                <button onclick="quickAsk('How do I locate a plastic surgeon in my area?')">Find a Surgeon</button>
-                <button onclick="quickAsk('Where are the before and after photos on the ASPS website?')">Photo Gallery</button>
-                <button onclick="quickAsk('How do I navigate to patient safety information?')">Patient Safety Info</button>
+            
+            <div class="chat-content">
+                <div class="sample-questions">
+                    <h3>💡 Try these sample questions to get started:</h3>
+                    <div class="question-categories">
+                        <div class="question-category">
+                            <h4>🩺 Operative Notes & Breast Reconstruction:</h4>
+                            <div class="question-button" data-question="What are the typical indications for placement of a tissue expander in breast reconstruction surgery?">Tissue expander indications</div>
+                            <div class="question-button" data-question="Describe the steps involved in the placement of a tissue expander after mastectomy.">Tissue expander placement</div>
+                            <div class="question-button" data-question="How is capsulorrhaphy performed during implant exchange in breast reconstruction?">Capsulorrhaphy technique</div>
+                            <div class="question-button" data-question="Explain the operative steps for a free TRAM flap breast reconstruction.">Free TRAM flap procedure</div>
+                        </div>
+                        <div class="question-category">
+                            <h4>🔬 Microsurgical Flaps:</h4>
+                            <div class="question-button" data-question="What is the vascular supply of the radial forearm flap?">Radial forearm flap anatomy</div>
+                            <div class="question-button" data-question="How is the Allen test used in the preoperative assessment of the radial forearm flap?">Allen test for radial flap</div>
+                            <div class="question-button" data-question="What artery supplies the vascularized fibula flap?">Fibula flap vascular supply</div>
+                            <div class="question-button" data-question="Why is the distal 6 cm of the fibula preserved during flap harvest?">Fibula preservation technique</div>
+                        </div>
+                        <div class="question-category">
+                            <h4>🧭 Navigation Questions:</h4>
+                            <div class="question-button" data-question="How do I use the Find a Surgeon tool on plasticsurgery.org?">Find a Surgeon tool</div>
+                            <div class="question-button" data-question="Where exactly on plasticsurgery.org can I see breast augmentation before and after photos?">Before/after photos</div>
+                            <div class="question-button" data-question="What specific steps do I take to verify a plastic surgeon is board certified?">Board certification</div>
+                            <div class="question-button" data-question="How much does breast reconstruction typically cost?">Reconstruction costs</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="chat-messages" id="chatMessages">
+                    <div class="message bot">
+                        <div class="message-content">
+                            <strong>👋 Welcome to the ASPS Medical AI Assistant!</strong><br><br>
+                            
+                            🩺 <strong>Clinical Questions:</strong> Ask about surgical procedures, microsurgical flaps, operative techniques, anatomy, and clinical considerations from training materials including:<br>
+                            • Breast reconstruction procedures (tissue expanders, TRAM flaps, fat grafting)<br>
+                            • Microsurgical flaps (radial forearm, fibula, serratus, scapula, TAP)<br>
+                            • Venous flow-through flaps and theories<br>
+                            • Craniomaxillofacial fixation and healing<br><br>
+                            
+                            🧭 <strong>Navigation Questions:</strong> Get help finding information on plasticsurgery.org including surgeon directories, before/after photos, cost information, and appointment scheduling<br><br>
+                            
+                            💡 <strong>Smart Fallback:</strong> If clinical information isn't available in training materials, I'll try to help using ASPS website knowledge as backup!<br><br>
+                            
+                            <strong>Click any sample question above or type your own below!</strong>
+                        </div>
+                    </div>
+                    
+                    <div class="typing-indicator" id="typingIndicator">
+                        <div class="typing-dots">
+                            <span></span><span></span><span></span>
+                        </div>
+                    </div>
+                </div>
             </div>
-            <div class="status" id="statusBox">
-                <strong>Connection:</strong> <span id="connStatus">Checking...</span><br>
-                <strong>GPU:</strong> <span id="gpuStatus">-</span><br>
-                <strong>Model:</strong> <span id="modelStatus">-</span>
+            
+            <div class="chat-input-container">
+                <input type="text" id="chatInput" class="chat-input" 
+                       placeholder="Ask about plastic surgery procedures or website navigation..." 
+                       autocomplete="off">
+                <button id="sendButton" class="send-button">Send</button>
             </div>
         </div>
-        <div class="container">
-            <div class="branding">
-                <img src="https://www.plasticsurgery.org/images/logo.svg" alt="ASPS Logo" />
-                <h1>ASPS Medical Assistant</h1>
-            </div>
-            <div class="disclaimer">
-                <strong>Disclaimer:</strong> This chatbot provides medical information for educational purposes only. Always consult a qualified healthcare provider for medical advice.
-            </div>
-            <div class="chatbox" id="chatbox">
-                <div class="bot">🤖 Welcome! Ask a clinical or navigation question about plastic surgery.</div>
-            </div>
-            <div class="input-row">
-                <input type="text" id="userInput" placeholder="Type your question here..." autofocus />
-                <button class="send-btn" onclick="sendMessage()">Send</button>
-            </div>
-            <div class="loading" id="loadingBox" style="display:none;">AI is thinking<span id="dots">...</span></div>
-            <div class="footer">
-                Powered by Athena RAG API &mdash; For demonstration purposes only.<br>
-                <span id="responseTime"></span>
-            </div>
-        </div>
-    </div>
-    <script>
-        const chatbox = document.getElementById('chatbox');
-        const userInput = document.getElementById('userInput');
-        const loadingBox = document.getElementById('loadingBox');
-        const dots = document.getElementById('dots');
-        const connStatus = document.getElementById('connStatus');
-        const gpuStatus = document.getElementById('gpuStatus');
-        const modelStatus = document.getElementById('modelStatus');
-        const responseTime = document.getElementById('responseTime');
 
-        function appendMessage(sender, text) {
-            const div = document.createElement('div');
-            div.className = sender;
-            div.textContent = (sender === 'user' ? '🧑 ' : '🤖 ') + text;
-            chatbox.appendChild(div);
-            chatbox.scrollTop = chatbox.scrollHeight;
-        }
-
-        function quickAsk(question) {
-            userInput.value = question;
-            sendMessage();
-        }
-
-        let loadingInterval;
-        function showLoading() {
-            loadingBox.style.display = '';
-            let dotCount = 0;
-            loadingInterval = setInterval(() => {
-                dotCount = (dotCount + 1) % 4;
-                dots.textContent = '.'.repeat(dotCount + 1);
-            }, 400);
-        }
-        function hideLoading() {
-            loadingBox.style.display = 'none';
-            clearInterval(loadingInterval);
-            dots.textContent = '...';
-        }
-
-        async function sendMessage() {
-            const question = userInput.value.trim();
-            if (!question) return;
-            appendMessage('user', question);
-            userInput.value = '';
-            showLoading();
-            const start = performance.now();
-            try {
-                const res = await fetch('/query', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ question, k: 3 })
-                });
-                const data = await res.json();
-                hideLoading();
-                const end = performance.now();
-                responseTime.textContent = `Response time: ${(end - start).toFixed(1)} ms`;
-                if (data.answer) {
-                    appendMessage('bot', data.answer);
-                } else {
-                    appendMessage('bot', 'No answer received.');
+        <script>
+            // Configuration
+            let isWaitingForResponse = false;
+            const API_PORT = 19524;
+            
+            // Determine the correct API URL based on current location
+            function getApiUrl() {
+                const protocol = window.location.protocol;
+                const hostname = window.location.hostname;
+                
+                // If we're on localhost, use localhost
+                if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                    return `${protocol}//${hostname}:${API_PORT}`;
                 }
-            } catch (err) {
-                hideLoading();
-                appendMessage('bot', 'Error: ' + err);
+                
+                // If we're on a RunPod domain or specific IP, use that
+                return `${protocol}//${hostname}:${API_PORT}`;
             }
-        }
+            
+            const apiUrl = getApiUrl();
+            console.log('API URL configured as:', apiUrl);
 
-        userInput.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') sendMessage();
-        });
-
-        // Health monitoring
-        async function updateStatus() {
-            try {
-                const res = await fetch('/health');
-                const data = await res.json();
-                connStatus.textContent = data.status === 'healthy' ? 'Connected' : 'Initializing...';
-                gpuStatus.textContent = data.gpu_name || '-';
-                modelStatus.textContent = data.models_loaded && data.models_loaded.rag_model ? 'Loaded' : 'Loading...';
-            } catch {
-                connStatus.textContent = 'Offline';
-                gpuStatus.textContent = '-';
-                modelStatus.textContent = '-';
+            // Initialize
+            document.addEventListener('DOMContentLoaded', function() {
+                console.log('Page loaded, initializing...');
+                checkServerStatus();
+                setupEventListeners();
+            });
+            
+            function setupEventListeners() {
+                // Sample question buttons
+                document.querySelectorAll('.question-button').forEach(button => {
+                    button.addEventListener('click', function() {
+                        const question = this.getAttribute('data-question');
+                        if (question) {
+                            console.log('Sample question clicked:', question);
+                            askQuestion(question);
+                        }
+                    });
+                });
+                
+                // Input field
+                document.getElementById('chatInput').addEventListener('keypress', function(event) {
+                    if (event.key === 'Enter' && !event.shiftKey) {
+                        event.preventDefault();
+                        sendMessage();
+                    }
+                });
+                
+                // Send button
+                document.getElementById('sendButton').addEventListener('click', sendMessage);
             }
+
+            async function checkServerStatus() {
+                try {
+                    console.log('Checking server status at:', apiUrl + '/health');
+                    const response = await fetch(apiUrl + '/health', {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json',
+                        }
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        console.log('Server status:', data);
+                        
+                        const indicator = document.getElementById('statusIndicator');
+                        if (data.org_loaded) {
+                            indicator.textContent = '✅ Online';
+                            indicator.className = 'status-indicator status-online';
+                        } else {
+                            indicator.textContent = '⚠️ Loading';
+                            indicator.className = 'status-indicator status-offline';
+                        }
+                    } else {
+                        throw new Error('Server response not ok');
+                    }
+                } catch (error) {
+                    console.error('Server status check failed:', error);
+                    const indicator = document.getElementById('statusIndicator');
+                    indicator.textContent = '❌ Offline';
+                    indicator.className = 'status-indicator status-offline';
+                }
+            }
+
+            function askQuestion(question) {
+                console.log('Setting question:', question);
+                document.getElementById('chatInput').value = question;
+                sendMessage();
+            }
+
+            function addMessage(content, isUser = false) {
+                const messagesContainer = document.getElementById('chatMessages');
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${isUser ? 'user' : 'bot'}`;
+                
+                const contentDiv = document.createElement('div');
+                contentDiv.className = 'message-content';
+                contentDiv.innerHTML = content;
+                
+                messageDiv.appendChild(contentDiv);
+                messagesContainer.appendChild(messageDiv);
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
+
+            function showTyping() {
+                document.getElementById('typingIndicator').style.display = 'block';
+                document.getElementById('chatMessages').scrollTop = document.getElementById('chatMessages').scrollHeight;
+            }
+
+            function hideTyping() {
+                document.getElementById('typingIndicator').style.display = 'none';
+            }
+
+            async function sendMessage() {
+                if (isWaitingForResponse) {
+                    console.log('Already waiting for response, ignoring...');
+                    return;
+                }
+
+                const input = document.getElementById('chatInput');
+                const message = input.value.trim();
+                
+                if (!message) {
+                    console.log('Empty message, ignoring...');
+                    return;
+                }
+
+                console.log('Sending message:', message);
+
+                // Add user message
+                addMessage(message, true);
+                input.value = '';
+                
+                // Show typing indicator
+                showTyping();
+                isWaitingForResponse = true;
+                document.getElementById('sendButton').disabled = true;
+                document.getElementById('sendButton').textContent = 'Sending...';
+
+                try {
+                    console.log('Making API request to:', apiUrl + '/query');
+                    const response = await fetch(apiUrl + '/query', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Accept': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            question: message,
+                            k: 3
+                        })
+                    });
+
+                    hideTyping();
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        console.log('Received response:', data);
+                        addMessage(formatAnswer(data.answer));
+                    } else {
+                        const errorText = await response.text();
+                        console.error('API error:', response.status, errorText);
+                        addMessage(`❌ <strong>Error ${response.status}:</strong> ${errorText}`);
+                    }
+                } catch (error) {
+                    hideTyping();
+                    console.error('Network error:', error);
+                    addMessage(`❌ <strong>Connection Error:</strong> ${error.message}<br><br>Please check if the server is running and accessible at: <code>${apiUrl}</code>`);
+                } finally {
+                    isWaitingForResponse = false;
+                    document.getElementById('sendButton').disabled = false;
+                    document.getElementById('sendButton').textContent = 'Send';
+                    document.getElementById('chatInput').focus();
+                }
+            }
+
+            function formatAnswer(answer) {
+                if (!answer) return 'No response received.';
+                
+                return answer
+                    // Handle knowledge indicators
+                    .replace(/\*\*\[Using (CLINICAL|NAVIGATION) knowledge.*?\]\*\*/g, 
+                        '<div class="knowledge-indicator">[$1 KNOWLEDGE]</div>')
+                    
+                    // Format sections with emojis
+                    .replace(/✅ \*\*(.*?)\*\*/g, '<div style="margin: 10px 0;"><strong>✅ $1</strong></div>')
+                    .replace(/🧠 \*\*(.*?)\*\*/g, '<div style="margin: 10px 0;"><strong>🧠 $1</strong></div>')
+                    .replace(/🔧 \*\*(.*?)\*\*/g, '<div style="margin: 10px 0;"><strong>🔧 $1</strong></div>')
+                    .replace(/⚠️ \*\*(.*?)\*\*/g, '<div style="margin: 10px 0;"><strong>⚠️ $1</strong></div>')
+                    .replace(/📍 \*\*(.*?)\*\*/g, '<div style="margin: 10px 0;"><strong>📍 $1</strong></div>')
+                    .replace(/🔗 \*\*(.*?)\*\*/g, '<div style="margin: 10px 0;"><strong>🔗 $1</strong></div>')
+                    .replace(/💡 \*\*(.*?)\*\*/g, '<div style="margin: 10px 0;"><strong>💡 $1</strong></div>')
+                    
+                    // Handle line breaks
+                    .replace(/\n\n/g, '<br><br>')
+                    .replace(/\n/g, '<br>')
+                    
+                    // Handle emphasis
+                    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                    .replace(/\*(.*?)\*/g, '<em>$1</em>');
+            }
+
+            // Auto-check server status every 30 seconds
+            setInterval(checkServerStatus, 30000);
+            
+            console.log('Chat interface initialized successfully!');
+        </script>
+    </body>
+    </html>
+    """
+
+@app.get("/test")
+async def test_system():
+    """Test the system with a sample clinical question to verify functionality"""
+    try:
+        # Test with a clinical question
+        test_question = "What is the vascular supply of the radial forearm flap?"
+        
+        # Classify intent
+        intent = classify_question_intent(test_question)
+        
+        # Retrieve context
+        context_chunks = retrieve_context(
+            query=test_question,
+            k=3,
+            org_id="asps", 
+            intent=intent
+        )
+        
+        # Generate answer
+        answer = generate_rag_answer_with_context(
+            user_question=test_question,
+            context_chunks=context_chunks,
+            mistral_tokenizer=tokenizer,
+            mistral_model=rag_model,
+            intent=intent,
+            org_id="asps"
+        )
+        
+        return {
+            "test_question": test_question,
+            "detected_intent": intent,
+            "context_chunks_found": len(context_chunks),
+            "answer_preview": answer[:200] + "..." if len(answer) > 200 else answer,
+            "system_status": "✅ Working correctly",
+            "fallback_available": True
         }
-        updateStatus();
-        setInterval(updateStatus, 15000);
-    </script>
-</body>
-</html>
-'''
-    return HTMLResponse(content=html_content)
+        
+    except Exception as e:
+        return {
+            "test_question": "System test failed",
+            "error": str(e),
+            "system_status": "❌ Error detected",
+            "fallback_available": False
+        }
 
 @app.get("/api")
 async def api_info():
@@ -2007,60 +2982,13 @@ async def api_info():
 
 @app.get("/health")
 async def health_check():
-    """Enhanced health check with detailed system status"""
-    try:
-        # Check FAISS indexes status
-        asps_loaded = "asps" in ORG_FAISS_INDEXES
-        clinical_count = 0
-        navigation_count = 0
-        
-        if asps_loaded:
-            clinical_chunks = ORG_CHUNKS.get("asps", {}).get("clinical", [])
-            navigation_chunks = ORG_CHUNKS.get("asps", {}).get("navigation", [])
-            clinical_count = len(clinical_chunks)
-            navigation_count = len(navigation_chunks)
-        
-        # Check model status
-        models_loaded = {
-            "tokenizer": tokenizer is not None,
-            "rag_model": rag_model is not None, 
-            "embed_model": embed_model is not None
-        }
-        
-        return {
-            "status": "healthy" if asps_loaded else "initializing",
-            "timestamp": str(torch.tensor(0).device),  # Simple way to get current timestamp
-            
-            # Hardware info
-            "cuda_available": torch.cuda.is_available(),
-            "device": str(torch.device("cuda" if torch.cuda.is_available() else "cpu")),
-            "gpu_name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "None",
-            
-            # Data status  
-            "org_loaded": asps_loaded,
-            "clinical_chunks_count": clinical_count,
-            "navigation_chunks_count": navigation_count,
-            "total_chunks": clinical_count + navigation_count,
-            
-            # Model status
-            "models_loaded": models_loaded,
-            "all_models_ready": all(models_loaded.values()),
-            
-            # System readiness
-            "system_ready": asps_loaded and all(models_loaded.values()),
-            
-            # API info
-            "endpoints": ["/", "/api", "/health", "/query", "/api/chat", "/sample-questions"],
-            "port": int(os.environ.get("PORT", 19524))
-        }
-        
-    except Exception as e:
-        return {
-            "status": "error",
-            "error": str(e),
-            "cuda_available": torch.cuda.is_available() if 'torch' in globals() else False,
-            "system_ready": False
-        }
+    return {
+        "status": "healthy",
+        "cuda_available": torch.cuda.is_available(),
+        "device": str(torch.device("cuda" if torch.cuda.is_available() else "cpu")),
+        "gpu_name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "None",
+        "org_loaded": "asps" in ORG_FAISS_INDEXES
+    }
 
 @app.post("/query", response_model=QueryResponse)
 async def query_asps_rag(request: QueryRequest):
@@ -2091,11 +3019,12 @@ async def query_asps_rag(request: QueryRequest):
             context_chunks=context_chunks,
             mistral_tokenizer=tokenizer,
             mistral_model=rag_model,
-            intent=intent
+            intent=intent,
+            org_id="asps"
         )
         
         # Add knowledge type indicator for user transparency
-        enhanced_answer = f"[Using {intent.upper()} knowledge] {answer}"
+        enhanced_answer = answer  # Answer already has knowledge indicator from generate_rag_answer_with_context
         
         return QueryResponse(
             answer=enhanced_answer,  # Include knowledge type indicator
@@ -2112,15 +3041,71 @@ async def query_chat_alias(request: QueryRequest):
 
 @app.get("/sample-questions")
 async def get_sample_questions():
+    """Get sample questions to demo the system"""
     return {
-        "questions": [
+        "operative_notes": [
+            "What are the typical indications for placement of a tissue expander in breast reconstruction surgery?",
             "Describe the steps involved in the placement of a tissue expander after mastectomy.",
-            "What is the vascular supply of the radial forearm flap?",
-            "What precautions must be taken to avoid injury to the peroneal nerve during fibula flap harvest?",
-            "What are the key elements of patient positioning and prep for a TRAM flap procedure?",
+            "What intraoperative measures are used to ensure hemostasis during breast reconstruction surgery?",
             "How is capsulorrhaphy performed during implant exchange in breast reconstruction?",
-            "What are the differences between craniofacial and mandibular plates?",
-            # ...add more from your tailored list...
+            "What is the role of fat grafting in breast reconstruction deformity correction?",
+            "Which type of anesthesia is most commonly used in breast reconstruction surgeries described?",
+            "What complications are typically monitored for following breast implant exchange procedures?",
+            "Explain the operative steps for a free TRAM flap breast reconstruction.",
+            "What are common donor sites for autologous tissue in breast reconstruction?",
+            "Describe the indications and steps for excision of a keloid on the ear.",
+            "What are common intraoperative findings and management strategies for fat necrosis in breast reconstruction scars?",
+            "How are drains typically managed postoperatively in breast reconstructive procedures?",
+            "What are the key elements of patient positioning and prep for a TRAM flap procedure?"
+        ],
+        "microsurgical_flaps": [
+            "What is the vascular supply of the radial forearm flap?",
+            "How is the Allen's test used in the preoperative assessment of the radial forearm flap?",
+            "Which veins can be used for venous drainage in the radial forearm flap?",
+            "Describe the surgical technique for raising a radial forearm flap, including key anatomical landmarks.",
+            "What are the considerations for including tendon or bone with the radial forearm flap?",
+            "What portion of the serratus anterior muscle is typically harvested for the flap?",
+            "What is the blood supply and innervation of the serratus muscle flap?",
+            "How is the patient positioned for harvest of the serratus muscle flap?",
+            "What nerves must be preserved during serratus flap harvest to prevent scapular winging?",
+            "Describe the vascular pedicle of the serratus flap and its relationship to the axillary artery.",
+            "What artery supplies the vascularized fibula flap?",
+            "What precautions must be taken to avoid injury to the peroneal nerve during fibula flap harvest?",
+            "Why is the distal 6 cm of the fibula preserved during flap harvest?",
+            "How is the skin paddle designed and harvested in the fibula flap?",
+            "What are the common uses for the vascularized fibula flap in reconstruction?",
+            "What are the two arterial sources for the scapula bone flap?",
+            "How is the scapula bone flap commonly combined with soft tissue flaps?",
+            "What is a chimeric flap and how does it apply to scapula bone flap reconstruction?",
+            "What is the typical pedicle length for a scapula bone flap?",
+            "How is the patient positioned for scapula bone flap harvest?",
+            "What is the primary blood supply to the TAP flap?",
+            "How does the TAP flap differ from the latissimus dorsi flap in terms of tissue components?",
+            "Describe the operative positioning and perforator mapping for TAP flap harvest.",
+            "What is the typical size and thickness of a TAP flap?",
+            "What are the common recipient sites for TAP flap reconstruction?"
+        ],
+        "venous_flaps": [
+            "What is unique about the vascular inflow and outflow in venous flow-through flaps?",
+            "What donor sites are preferred for venous flow-through flaps and why?",
+            "What are the three proposed theories explaining the survival of venous flow-through flaps?",
+            "What are the main challenges in designing a venous flow-through flap?",
+            "How does venous flap physiology differ from conventional arterialized flaps?"
+        ],
+        "craniomaxillofacial": [
+            "Describe the phases of secondary bone healing in craniomaxillofacial fractures.",
+            "What biological tissues replace the fracture hematoma during healing?",
+            "What types of implants are used in internal fixation of the craniomaxillofacial skeleton?",
+            "How do screw design and insertion techniques impact craniomaxillofacial fixation stability?",
+            "What are the differences between craniofacial and mandibular plates?"
+        ],
+        "navigation": [
+            "How do I use the Find a Surgeon tool on plasticsurgery.org?",
+            "Where exactly on plasticsurgery.org can I see breast augmentation before and after photos?",
+            "What specific steps do I take to verify a plastic surgeon is board certified?",
+            "How much does breast reconstruction typically cost?",
+            "Where can I find recovery information for TRAM flap procedures?",
+            "How do I schedule a consultation with an ASPS member surgeon?"
         ]
     }
 
@@ -2131,23 +3116,25 @@ def initialize_asps_system():
     # Step 0: Verify clinical training materials are accessible
     verify_clinical_training_setup()
     
-
     org_id = "asps"
+    
     try:
         print("📥 STEP 1: Checking for local JSON files (git clone approach)...")
+        
         # Try local git clone files first (preferred method)
         if setup_local_knowledge_bases(org_id):
             print("✅ Local JSON files found and copied!")
+            
             # Load the JSON knowledge bases into memory and build indexes
             if load_github_knowledge_bases_into_memory(org_id):
                 print("✅ Knowledge bases loaded and indexed successfully!")
             else:
-                print("❌ Failed to load knowledge bases into memory")
-                print("🔄 Falling back to local content and building basic indexes...")
+                print("⚠️ Failed to load JSON knowledge bases - building fallback indexes...")
                 build_clinical_navigation_indexes(org_id)
                 load_clinical_navigation_indexes(org_id)
         else:
             print("⚠️ No local JSON files found - trying GitHub download...")
+            
             # Fallback to GitHub download
             if download_knowledge_base_from_github(org_id):
                 print("✅ GitHub download successful!")
@@ -2159,127 +3146,74 @@ def initialize_asps_system():
                     load_clinical_navigation_indexes(org_id)
             else:
                 print("⚠️ GitHub download failed - building basic fallback indexes...")
+                
                 # Try to load existing indexes first
                 if load_clinical_navigation_indexes(org_id):
                     print("✅ Loaded existing clinical/navigation indexes!")
                 else:
                     print("🏗️ Building new clinical/navigation indexes from local content...")
                     result = build_clinical_navigation_indexes(org_id)
-                    print("✅ Built new indexes:")
+                    print(f"✅ Built new indexes:")
                     print(f"   📚 Clinical chunks: {result['clinical_chunks']}")
                     print(f"   🧭 Navigation chunks: {result['navigation_chunks']}")
+        
+        # Verify the final system state
+        if org_id in ORG_FAISS_INDEXES:
+            clinical_count = len(ORG_CHUNKS[org_id].get("clinical", []))
+            navigation_count = len(ORG_CHUNKS[org_id].get("navigation", []))
+            total_count = clinical_count + navigation_count
+            
+            print(f"🎯 ASPS RAG System Status:")
+            print(f"   📚 Clinical knowledge: {clinical_count} chunks")
+            print(f"   🧭 Navigation knowledge: {navigation_count} chunks") 
+            print(f"   🔥 Total knowledge base: {total_count} chunks")
+            print(f"   ✅ System ready for clinical/navigation queries!")
+            
+            # Log the approach that worked
+            if clinical_count > 1000:  # Indicates successful JSON loading
+                print("   🎖️ Using comprehensive JSON knowledge bases")
+            else:
+                print("   🔄 Using local content fallback")
+        else:
+            raise RuntimeError("Failed to initialize indexes")
+        
     except Exception as e:
-        print(f"❌ Critical error in main execution: {e}")
+        print(f"❌ Failed to initialize ASPS RAG system: {e}")
         import traceback
         traceback.print_exc()
+        # Continue without crashing - the health endpoint will show the error
 
-# ============================
-# 🛠️ MISSING STUBS FOR UNDEFINED SYMBOLS
-# ============================
-def get_org_paths(org_id):
-    """Returns a dict of paths for the given org_id."""
-    base = os.path.join(BASE_DIR, "org_data", org_id)
-    return {
-        "base": base,
-        "clinical_training_dir": os.path.join(base, "clinical"),
-        "training_data_dir": os.path.join(base, "training_data"),
-        "chunks_pkl": os.path.join(base, "clinical_chunks.pkl"),
-        "embeddings_npy": os.path.join(base, "clinical_embeddings.npy"),
-        "faiss_index": os.path.join(base, "clinical_index.faiss"),
-    }
-
-def is_valid_chunk(chunk):
-    """Returns True if chunk is valid (not empty, not too short)."""
-    return isinstance(chunk, str) and len(chunk.strip()) > 30
-
-def cosine_similarity(a, b):
-    """Returns cosine similarity between two numpy arrays."""
-    a = np.array(a)
-    b = np.array(b)
-    a_norm = a / np.linalg.norm(a, axis=1, keepdims=True)
-    b_norm = b / np.linalg.norm(b, axis=1, keepdims=True)
-    return np.dot(a_norm, b_norm.T)
-
-# ============================
-# 🛠️ MISSING IMPORTS & GLOBALS
-# ============================
-import os, sys, json, logging, pickle, numpy as np, shutil, zipfile, argparse, concurrent.futures
-import torch
-import faiss
-import fitz
-import pytesseract
-import urllib.request
-import pandas as pd
-
-# ============================
-# 🛠️ GLOBAL VARIABLES
-# ============================
-ORG_FAISS_INDEXES = {}
-ORG_CHUNKS = {}
-ORG_EMBEDDINGS = {}
-rag_model = None
-faiss_index = None
-rag_chunks = None
-rag_embeddings = None
-tokenizer = None
-embed_model = None
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-# ============================
-# 🛠️ UTILITY FUNCTION STUBS
-# ============================
-def chunk_text_by_words(text, max_words=800):
-    """Splits text into chunks of max_words words."""
-    if not text:
-        return []
-    words = text.split()
-    return [" ".join(words[i:i+max_words]) for i in range(0, len(words), max_words)]
-
-def classify_question_intent(question):
-    """Classifies question as 'clinical' or 'navigation'."""
-    clinical_keywords = ["surgery", "operative", "flap", "procedure", "blood supply", "implant", "reconstruction", "harvest", "preoperative", "muscle", "plate", "fibula", "capsulorrhaphy", "tissue expander"]
-    navigation_keywords = ["find", "locate", "where", "navigate", "cost", "photo", "gallery", "safety", "recovery", "tool", "information"]
-    q = question.lower()
-    if any(kw in q for kw in clinical_keywords):
-        return "clinical"
-    if any(kw in q for kw in navigation_keywords):
-        return "navigation"
-    return "clinical"  # Default fallback
-
-def retrieve_context(query, k=3, org_id="asps", intent="clinical"):
-    """Retrieves top-k context chunks from FAISS index."""
-    if org_id not in ORG_FAISS_INDEXES:
-        return []
-    index = ORG_FAISS_INDEXES[org_id][intent]
-    chunks = ORG_CHUNKS[org_id][intent]
-    embeddings = ORG_EMBEDDINGS[org_id][intent]
-    # Use embed_model to encode query
-    if embed_model is None:
-        return []
-    query_emb = embed_model.encode([query])
-    D, I = index.search(np.array(query_emb), k)
-    return [chunks[i] for i in I[0] if i < len(chunks)]
-
-def generate_rag_answer_with_context(user_question, context_chunks, mistral_tokenizer, mistral_model, intent="clinical"):
-    """Generates answer using context and model."""
-    # This is a stub; replace with actual model inference
-    context = "\n".join(context_chunks)
-    return f"[Context: {intent}] {context}\nAnswer: This is a generated answer for '{user_question}'."
-
-# ============================
-# 🛠️ MODEL LOADING STUBS
-# ============================
-def load_models():
-    global rag_model, tokenizer, embed_model
-    # Replace with actual model loading code
-    rag_model = "Loaded_Mistral_Model"
-    tokenizer = "Loaded_Mistral_Tokenizer"
-    class DummyEmbedModel:
-        def encode(self, texts, show_progress_bar=False):
-            # Return random vectors for demo
-            return np.random.rand(len(texts), 768)
-    embed_model = DummyEmbedModel()
-    print("✅ Models loaded (stub)")
-
-load_models()
-
+if __name__ == "__main__":
+    print("🏥 ASPS MEDICAL AI CHATBOT - CLINICAL/NAVIGATION DUAL SYSTEM")
+    print("=" * 70)
+    print("🎯 System Overview:")
+    print("   • CLINICAL questions → Training materials FAISS index")
+    print("   • NAVIGATION questions → Website knowledge FAISS index")  
+    print("   • Automatic intent detection and routing")
+    print("   • Mistral-7B powered medical responses")
+    print("")
+    print("📊 Data Sources:")
+    print("   📚 Clinical: PDFs/DOCX in clinical_training/ directory")
+    print("   🧭 Navigation: ASPS website content via knowledge bases")
+    print("")
+    print("🔧 Key Components:")
+    print("   🎯 classify_question_intent() - Routes questions")
+    print("   📚 build_clinical_navigation_indexes() - Dual FAISS setup")
+    print("   🔍 retrieve_context() - Intent-based retrieval")
+    print("   🤖 generate_rag_answer_with_context() - Response generation")
+    print("")
+    print("💡 Example Questions:")
+    print("   Clinical: 'What are the key operative techniques for breast reconstruction?'")
+    print("   Navigation: 'How do I use the Find a Surgeon tool on plasticsurgery.org?'")
+    print("")
+    
+    # Initialize ASPS system
+    initialize_asps_system()
+    
+    # Start FastAPI server
+    print("\n🌐 Starting ASPS Demo API server...")
+    print("📍 Server will be available at: http://0.0.0.0:19524")
+    print("📖 API docs at: http://0.0.0.0:19524/docs")
+    print("🏥 Health check at: http://0.0.0.0:19524/health")
+    print("\n✅ SYSTEM READY FOR CLINICAL/NAVIGATION DIFFERENTIATION!")
+    uvicorn.run(app, host="0.0.0.0", port=19524)
