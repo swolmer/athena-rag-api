@@ -1977,7 +1977,15 @@ def setup_local_knowledge_bases(org_id="asps"):
     print("📥 GIT CLONE MODE - Using local repository files...")
     
     # Check for local JSON files first (from git clone)
-    local_json_files = ["nav1.json", "nav2.json", "navigation_training_data.json"]
+    local_json_files = [
+        "nav1.json", 
+        "nav2.json", 
+        "navigation_training_data.json",
+        "comprehensive_split_01.json",           # Your actual split file
+        "ultimate_split_01.json",               # Another split file
+        "ultimate_asps_knowledge_base.json",    # Full backup file
+        "comprehensive_asps_database.json"      # Comprehensive database
+    ]
     found_files = []
     
     print("🔍 Checking for local JSON files from git clone...")
@@ -1989,8 +1997,12 @@ def setup_local_knowledge_bases(org_id="asps"):
         else:
             print(f"   ⚠️ Missing: {filename}")
     
-    if len(found_files) >= 2:  # Need at least nav1 and nav2
+    if len(found_files) >= 1:  # Need at least one JSON file to proceed
         print(f"\n✅ Found {len(found_files)} JSON files locally!")
+        print("📋 Files found:")
+        for filename in found_files:
+            file_size = os.path.getsize(filename) / (1024 * 1024)  # MB
+            print(f"   - {filename} ({file_size:.1f} MB)")
         
         # Copy files to expected location
         paths = get_org_paths(org_id)
@@ -2230,88 +2242,7 @@ def load_github_knowledge_bases_into_memory(org_id="asps"):
             ("comprehensive_asps_database.json", "navigation")    # Comprehensive database
         ]
         
-        # Check for split files (actual names from your GitHub repo)
-        # ACTUAL split files that exist in your GitHub repository 
-        split_files_to_load = [
-            ("ultimate_split_01.json", "navigation"),      # Your actual GitHub file
-            ("comprehensive_split_01.json", "navigation"), # Your actual GitHub file
-        ]
-        
-        # STEP 1: Try to load split files first (preferred method)
-        print("🔍 Checking for split knowledge base files...")
-        print(f"   Looking in repository root and org_data directory...")
-        split_files_loaded = False
-        
-        for filename, content_type in split_files_to_load:
-            file_path = None
-            
-            # First check repository root (where files actually are)
-            if os.path.exists(filename):
-                file_path = filename
-                print(f"   ✅ Found {filename} in repository root")
-            # Then check org_data/asps/ directory
-            elif os.path.exists(os.path.join(paths["base"], filename)):
-                file_path = os.path.join(paths["base"], filename)
-                print(f"   ✅ Found {filename} in org_data/asps/")
-            else:
-                print(f"   ❌ Not found: {filename}")
-                continue
-            
-            try:
-                with open(file_path, 'r', encoding='utf-8') as f:
-                    chunk_data = json.load(f)
-                
-                if isinstance(chunk_data, list):
-                    chunks = chunk_data
-                else:
-                    # Handle different JSON structures
-                    chunks = chunk_data.get('chunks', chunk_data.get('data', [chunk_data]))
-                
-                if content_type == "navigation":
-                    navigation_chunks.extend(chunks)
-                else:
-                    clinical_chunks.extend(chunks)
-                
-                print(f"   ✅ Loaded {len(chunks)} chunks from {filename}")
-                split_files_loaded = True
-                
-            except Exception as e:
-                print(f"   ❌ Error loading {filename}: {e}")
-                continue
-            file_path = os.path.join(paths["base"], filename)
-            print(f"      Looking for: {filename} at {file_path}")
-            
-            if os.path.exists(file_path):
-                try:
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        data = json.load(f)
-                    
-                    # Process chunks
-                    loaded_chunks = []
-                    for chunk in data:
-                        if isinstance(chunk, str):
-                            text = chunk
-                        elif isinstance(chunk, dict):
-                            text = chunk.get('text', chunk.get('content', ''))
-                        else:
-                            continue
-                        
-                        if not text or len(text) < 30:
-                            continue
-                        
-                        loaded_chunks.append(text)
-                    
-                    # Add to navigation chunks
-                    navigation_chunks.extend(loaded_chunks)
-                    print(f"      ✅ Loaded {filename}: {len(loaded_chunks)} chunks → navigation")
-                    split_files_loaded = True
-                    
-                except Exception as file_error:
-                    print(f"      ❌ Error loading {filename}: {file_error}")
-            else:
-                print(f"      ❌ Not found: {filename}")
-        
-        # STEP 2: Load individual JSON files (nav1.json, nav2.json, navigation_training_data.json)
+        # STEP 1: Load individual JSON files (nav1.json, nav2.json, navigation_training_data.json)
         print("📄 Loading individual navigation JSON files...")
         
         for filename, content_type in kb_files:
@@ -2357,36 +2288,6 @@ def load_github_knowledge_bases_into_memory(org_id="asps"):
             except Exception as e:
                 print(f"   ❌ Error loading {filename}: {e}")
                 continue
-            file_path = os.path.join(paths["base"], filename)
-            
-            if os.path.exists(file_path):
-                print(f"   📄 Loading {filename}...")
-                try:
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        data = json.load(f)
-                    
-                    # Process chunks based on file type
-                    for chunk in data:
-                        if isinstance(chunk, str):
-                            text = chunk
-                        elif isinstance(chunk, dict):
-                            text = chunk.get('text', chunk.get('content', ''))
-                        else:
-                            continue
-                        
-                        if not text or len(text) < 30:
-                            continue
-                        
-                        # Route to appropriate index (all go to navigation)
-                        if content_type == "navigation":
-                            navigation_chunks.append(text)
-                    
-                    print(f"   ✅ Processed {len(data)} chunks from {filename}")
-                    
-                except Exception as file_error:
-                    print(f"   ⚠️ Error processing {filename}: {file_error}")
-            else:
-                print(f"   ⚠️ {filename} not found, skipping...")
         
         print(f"✅ Total navigation chunks loaded: {len(navigation_chunks)} (from split files + individual JSON files)")
         
