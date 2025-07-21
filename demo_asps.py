@@ -1515,140 +1515,40 @@ def build_clinical_navigation_indexes(org_id="asps"):
         navigation_embeddings = embed_model.encode(navigation_chunks)
         navigation_index = faiss.IndexFlatL2(navigation_embeddings.shape[1])
         navigation_index.add(np.array(navigation_embeddings))
-    
-    # ============================
-    # 📦 STEP 4: BUILD BACKUP CLINICAL INDEX (HTML PAGES)
-    # ============================
-    
-    print("🆘 Building BACKUP clinical index from HTML pages...")
-    backup_clinical_chunks = []
-    
-    # Use your existing HTML pages directory (you've already downloaded them)
-    html_pages_dir = r"C:\Users\sophi\Downloads\Athen_AI\editions\asps_demo\org_data\asps\html_pages"
-    
-    if os.path.exists(html_pages_dir):
-        print(f"✅ Found existing HTML pages directory: {html_pages_dir}")
-        
-        from bs4 import BeautifulSoup
-        
-        html_files = [f for f in os.listdir(html_pages_dir) if f.endswith('.html')]
-        print(f"📄 Processing {len(html_files)} existing HTML files for backup clinical content...")
-        
-        for file in html_files:
-            if not file.endswith(".html"):
-                continue
-                
-            file_path = os.path.join(html_pages_dir, file)
-            
-            try:
-                with open(file_path, "r", encoding="utf-8") as f:
-                    soup = BeautifulSoup(f.read(), "html.parser")
-                    
-                    # Extract clinical-relevant content from HTML pages
-                    # Look for content in main sections, articles, divs with medical content
-                    content_selectors = [
-                        "main", "article", ".content", ".main-content",
-                        "p", "div", "section"
-                    ]
-                    
-                    for selector in content_selectors:
-                        elements = soup.select(selector)
-                        for element in elements:
-                            text = element.get_text(separator=" ", strip=True)
-                            
-                            # Filter for medical/clinical content
-                            medical_keywords = [
-                                "surgery", "surgical", "procedure", "treatment", "medical",
-                                "patient", "doctor", "surgeon", "breast", "reconstruction",
-                                "plastic", "cosmetic", "implant", "flap", "tissue", "skin",
-                                "operation", "operative", "clinic", "hospital", "recovery",
-                                "healing", "complications", "risks", "benefits", "anatomical",
-                                "incision", "suture", "anesthesia", "consultation"
-                            ]
-                            
-                            # Check if text contains medical keywords and is substantial
-                            if (len(text.split()) > 20 and 
-                                any(keyword.lower() in text.lower() for keyword in medical_keywords)):
-                                
-                                # Chunk the text into manageable pieces
-                                chunks = chunk_text_by_words(text, max_words=300)
-                                for chunk in chunks:
-                                    if is_valid_chunk(chunk) and len(chunk.split()) > 15:
-                                        backup_clinical_chunks.append(chunk)
-                                        
-            except Exception as e:
-                print(f"⚠️ Failed to process {file}: {e}")
-                continue
-    else:
-        print(f"⚠️ HTML pages directory not found: {html_pages_dir}")
-        print("💡 Backup clinical index will be empty")
-    
-    # Remove duplicates
-    backup_clinical_chunks = list(dict.fromkeys(backup_clinical_chunks))
-    
-    # Build backup clinical index
-    if backup_clinical_chunks:
-        print(f"🔢 Building BACKUP clinical index with {len(backup_clinical_chunks)} chunks...")
-        backup_clinical_embeddings = embed_model.encode(backup_clinical_chunks, show_progress_bar=True)
-        backup_clinical_index = faiss.IndexFlatL2(backup_clinical_embeddings.shape[1])
-        backup_clinical_index.add(np.array(backup_clinical_embeddings))
-        
-        # Save backup clinical data
-        backup_chunks_path = os.path.join(paths["base"], "backup_clinical_chunks.pkl")
-        backup_embeddings_path = os.path.join(paths["base"], "backup_clinical_embeddings.npy")
-        backup_index_path = os.path.join(paths["base"], "backup_clinical_index.faiss")
-        
-        with open(backup_chunks_path, "wb") as f:
-            pickle.dump(backup_clinical_chunks, f)
-        np.save(backup_embeddings_path, backup_clinical_embeddings)
-        faiss.write_index(backup_clinical_index, backup_index_path)
-        
-        print(f"✅ Backup clinical index saved with {len(backup_clinical_chunks)} chunks")
-    else:
-        print("⚠️ No backup clinical chunks found - creating minimal backup")
-        backup_clinical_chunks = ["No backup clinical data available from HTML pages"]
-        backup_clinical_embeddings = embed_model.encode(backup_clinical_chunks)
-        backup_clinical_index = faiss.IndexFlatL2(backup_clinical_embeddings.shape[1])
-        backup_clinical_index.add(np.array(backup_clinical_embeddings))
 
     # ============================
-    # 📦 STEP 5: STORE IN GLOBAL MEMORY (THREE INDEXES)
+    # 📦 STEP 4: STORE IN GLOBAL MEMORY (TWO-TIER SYSTEM)
     # ============================
     
-    # Store in three-index format: clinical, navigation, backup_clinical
+    # Store in two-tier format: clinical + navigation (GitHub-based)
     ORG_FAISS_INDEXES[org_id] = {
         "clinical": clinical_index,
-        "navigation": navigation_index,
-        "backup_clinical": backup_clinical_index
+        "navigation": navigation_index
     }
     ORG_CHUNKS[org_id] = {
         "clinical": clinical_chunks,
-        "navigation": navigation_chunks,
-        "backup_clinical": backup_clinical_chunks
+        "navigation": navigation_chunks
     }
     ORG_EMBEDDINGS[org_id] = {
         "clinical": clinical_embeddings,
-        "navigation": navigation_embeddings,
-        "backup_clinical": backup_clinical_embeddings
+        "navigation": navigation_embeddings
     }
     
-    print(f"🎯 Successfully built THREE-TIER clinical system for '{org_id}'!")
-    print(f"   📚 Primary Clinical chunks: {len(clinical_chunks)} (training materials)")
-    print(f"   🧭 Navigation chunks: {len(navigation_chunks)} (website navigation)")
-    print(f"   🆘 Backup Clinical chunks: {len(backup_clinical_chunks)} (HTML fallback)")
+    print(f"🎯 Successfully built TWO-TIER GitHub-based system for '{org_id}'!")
+    print(f"   📚 Clinical chunks: {len(clinical_chunks)} (training materials from GitHub)")
+    print(f"   🧭 Navigation chunks: {len(navigation_chunks)} (website navigation from GitHub)")
     
     return {
         "clinical_chunks": len(clinical_chunks),
-        "navigation_chunks": len(navigation_chunks),
-        "backup_clinical_chunks": len(backup_clinical_chunks)
+        "navigation_chunks": len(navigation_chunks)
     }
 
 
 def load_clinical_navigation_indexes(org_id="asps"):
     """
-    Load pre-built clinical, navigation, and backup clinical indexes from disk.
+    Load pre-built clinical and navigation indexes from disk (GitHub-based system).
     """
-    print(f"📥 Loading THREE-TIER clinical/navigation indexes for '{org_id}'...")
+    print(f"📥 Loading TWO-TIER clinical/navigation indexes for '{org_id}'...")
     paths = get_org_paths(org_id)
     
     try:
@@ -1672,59 +1572,23 @@ def load_clinical_navigation_indexes(org_id="asps"):
         navigation_embeddings = np.load(navigation_embeddings_path)
         navigation_index = faiss.read_index(navigation_index_path)
         
-        # Try to load backup clinical data
-        backup_chunks_path = os.path.join(paths["base"], "backup_clinical_chunks.pkl")
-        backup_embeddings_path = os.path.join(paths["base"], "backup_clinical_embeddings.npy")
-        backup_index_path = os.path.join(paths["base"], "backup_clinical_index.faiss")
-        
-        backup_clinical_chunks = []
-        backup_clinical_embeddings = None
-        backup_clinical_index = None
-        
-        if (os.path.exists(backup_chunks_path) and 
-            os.path.exists(backup_embeddings_path) and 
-            os.path.exists(backup_index_path)):
-            try:
-                with open(backup_chunks_path, "rb") as f:
-                    backup_clinical_chunks = pickle.load(f)
-                backup_clinical_embeddings = np.load(backup_embeddings_path)
-                backup_clinical_index = faiss.read_index(backup_index_path)
-                print(f"✅ Loaded backup clinical index with {len(backup_clinical_chunks)} chunks")
-            except Exception as e:
-                print(f"⚠️ Failed to load backup clinical index: {e}")
-                print("🔄 Will create minimal backup")
-                backup_clinical_chunks = ["No backup clinical data available"]
-                backup_clinical_embeddings = embed_model.encode(backup_clinical_chunks)
-                backup_clinical_index = faiss.IndexFlatL2(backup_clinical_embeddings.shape[1])
-                backup_clinical_index.add(np.array(backup_clinical_embeddings))
-        else:
-            print("⚠️ Backup clinical index files not found - creating minimal backup")
-            backup_clinical_chunks = ["No backup clinical data available"]
-            backup_clinical_embeddings = embed_model.encode(backup_clinical_chunks)
-            backup_clinical_index = faiss.IndexFlatL2(backup_clinical_embeddings.shape[1])
-            backup_clinical_index.add(np.array(backup_clinical_embeddings))
-        
-        # Store in global memory with three indexes
+        # Store in global memory (TWO-TIER SYSTEM)
         ORG_FAISS_INDEXES[org_id] = {
             "clinical": clinical_index,
-            "navigation": navigation_index,
-            "backup_clinical": backup_clinical_index
+            "navigation": navigation_index
         }
         ORG_CHUNKS[org_id] = {
             "clinical": clinical_chunks,
-            "navigation": navigation_chunks,
-            "backup_clinical": backup_clinical_chunks
+            "navigation": navigation_chunks
         }
         ORG_EMBEDDINGS[org_id] = {
             "clinical": clinical_embeddings,
-            "navigation": navigation_embeddings,
-            "backup_clinical": backup_clinical_embeddings
+            "navigation": navigation_embeddings
         }
         
-        print(f"✅ Loaded THREE-TIER system for '{org_id}'")
-        print(f"   📚 Primary Clinical chunks: {len(clinical_chunks)} (training materials)")
+        print(f"✅ Loaded TWO-TIER GitHub-based system for '{org_id}'")
+        print(f"   📚 Clinical chunks: {len(clinical_chunks)} (training materials)")
         print(f"   🧭 Navigation chunks: {len(navigation_chunks)} (website navigation)")
-        print(f"   🆘 Backup Clinical chunks: {len(backup_clinical_chunks)} (HTML fallback)")
         
         return True
         
@@ -2187,13 +2051,11 @@ def download_knowledge_base_from_github(org_id="asps", github_repo="swolmer/athe
         "comprehensive_asps_database.json"        # 📦 Comprehensive file (359.34 MB) - will be split
     ]
     
-    # Split files to check for (generated by split_knowledge_base.py)
-    split_file_patterns = [
-        "ultimate_split_{:02d}.json",      # ultimate_split_01.json, ultimate_split_02.json
-        "comprehensive_split_{:02d}.json", # comprehensive_split_01.json through comprehensive_split_15.json
-        "nav1_split_{:02d}.json",          # In case nav1 gets split later
-        "nav2_split_{:02d}.json",          # In case nav2 gets split later
-        "nav_training_split_{:02d}.json"   # In case navigation training gets split later
+    # ACTUAL split files that exist in your GitHub repository
+    split_files_to_check = [
+        "ultimate_split_01.json",        # Your actual file from GitHub
+        "comprehensive_split_01.json",   # Your actual file from GitHub  
+        # Note: Only checking for files that actually exist in your repo
     ]    # Ensure directories exist
     paths = get_org_paths(org_id)
     os.makedirs(paths["base"], exist_ok=True)
@@ -2244,46 +2106,40 @@ def download_knowledge_base_from_github(org_id="asps", github_repo="swolmer/athe
         
         # Download split files
         print("📦 Checking for split files...")
-        for pattern in split_file_patterns:
-            pattern_name = pattern.replace("_{:02d}.json", "")
-            print(f"   🔍 Looking for {pattern_name} files...")
+        for filename in split_files_to_check:
+            print(f"   🔍 Looking for {filename}...")
             
-            for i in range(1, 20):  # Check up to 20 split files per pattern
-                filename = pattern.format(i)
-                url = f"{github_base_url}/{filename}"
-                local_path = os.path.join(paths["base"], filename)
+            url = f"{github_base_url}/{filename}"
+            local_path = os.path.join(paths["base"], filename)
+            
+            try:
+                # Create request with authentication if token is available
+                req = urllib.request.Request(url)
+                if github_token:
+                    req.add_header("Authorization", f"token {github_token}")
                 
-                try:
-                    # Create request with authentication if token is available
-                    req = urllib.request.Request(url)
-                    if github_token:
-                        req.add_header("Authorization", f"token {github_token}")
+                # Try to download the file
+                with urllib.request.urlopen(req) as response, open(local_path, 'wb') as f:
+                    f.write(response.read())
+                
+                # Verify file was downloaded and is valid
+                if os.path.exists(local_path) and os.path.getsize(local_path) > 100:
+                    with open(local_path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                        file_size = os.path.getsize(local_path) / (1024 * 1024)  # MB
+                        downloaded_files.append(filename)
+                        print(f"      ✅ {filename}: {len(data)} chunks ({file_size:.1f} MB)")
+                else:
+                    os.remove(local_path) if os.path.exists(local_path) else None
+                    print(f"      ❌ {filename}: Invalid file")
                     
-                    # Try to download the file
-                    with urllib.request.urlopen(req) as response, open(local_path, 'wb') as f:
-                        f.write(response.read())
-                    
-                    # Verify file was downloaded and is valid
-                    if os.path.exists(local_path) and os.path.getsize(local_path) > 100:
-                        with open(local_path, 'r', encoding='utf-8') as f:
-                            data = json.load(f)
-                            file_size = os.path.getsize(local_path) / (1024 * 1024)  # MB
-                            downloaded_files.append(filename)
-                            print(f"      ✅ {filename}: {len(data)} chunks ({file_size:.1f} MB)")
-                    else:
-                        os.remove(local_path) if os.path.exists(local_path) else None
-                        break  # No more files for this pattern
-                        
-                except urllib.error.HTTPError as e:
-                    if e.code == 404:
-                        # No more files for this pattern
-                        break
-                    else:
-                        print(f"      ⚠️ HTTP error downloading {filename}: {e}")
-                        break
-                except Exception as file_error:
-                    print(f"      ⚠️ Failed to download {filename}: {file_error}")
-                    break
+            except urllib.error.HTTPError as e:
+                if e.code == 404:
+                    print(f"      ⚠️ {filename} not found in repository")
+                else:
+                    print(f"      ❌ HTTP error downloading {filename}: {e}")
+            except Exception as file_error:
+                print(f"      ❌ Failed to download {filename}: {file_error}")
         
         if downloaded_files:
             print(f"🎯 Successfully downloaded {len(downloaded_files)} knowledge base files from GitHub!")
@@ -2375,9 +2231,10 @@ def load_github_knowledge_bases_into_memory(org_id="asps"):
         ]
         
         # Check for split files (actual names from your GitHub repo)
-        split_prefixes = [
-            "ultimate_split",           # Split ultimate knowledge base files (ultimate_split_01.json, ultimate_split_02.json)
-            "comprehensive_split",      # Split comprehensive database files (comprehensive_split_01.json - comprehensive_split_15.json)
+        # ACTUAL split files that exist in your GitHub repository 
+        split_files_to_load = [
+            ("ultimate_split_01.json", "navigation"),      # Your actual GitHub file
+            ("comprehensive_split_01.json", "navigation"), # Your actual GitHub file
         ]
         
         # STEP 1: Try to load split files first (preferred method)
@@ -2385,13 +2242,39 @@ def load_github_knowledge_bases_into_memory(org_id="asps"):
         print(f"   Looking in directory: {paths['base']}")
         split_files_loaded = False
         
-        for prefix in split_prefixes:
-            print(f"   🔍 Searching for {prefix}_*.json files...")
-            split_data = load_split_knowledge_base(prefix, org_id)
-            if split_data:
-                navigation_chunks.extend(split_data)
-                print(f"   ✅ Loaded {prefix}: {len(split_data)} chunks → navigation")
-                split_files_loaded = True
+        for filename, content_type in split_files_to_load:
+            file_path = os.path.join(paths["base"], filename)
+            print(f"      Looking for: {filename} at {file_path}")
+            
+            if os.path.exists(file_path):
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                    
+                    # Process chunks
+                    loaded_chunks = []
+                    for chunk in data:
+                        if isinstance(chunk, str):
+                            text = chunk
+                        elif isinstance(chunk, dict):
+                            text = chunk.get('text', chunk.get('content', ''))
+                        else:
+                            continue
+                        
+                        if not text or len(text) < 30:
+                            continue
+                        
+                        loaded_chunks.append(text)
+                    
+                    # Add to navigation chunks
+                    navigation_chunks.extend(loaded_chunks)
+                    print(f"      ✅ Loaded {filename}: {len(loaded_chunks)} chunks → navigation")
+                    split_files_loaded = True
+                    
+                except Exception as file_error:
+                    print(f"      ❌ Error loading {filename}: {file_error}")
+            else:
+                print(f"      ❌ Not found: {filename}")
         
         # STEP 2: Load individual JSON files (nav1.json, nav2.json, navigation_training_data.json)
         print("📄 Loading individual navigation JSON files...")
@@ -2521,102 +2404,25 @@ def load_github_knowledge_bases_into_memory(org_id="asps"):
             navigation_embeddings = embed_model.encode(navigation_chunks)
             navigation_index = faiss.IndexFlatL2(navigation_embeddings.shape[1])
             navigation_index.add(np.array(navigation_embeddings))
-        
-        # ============================
-        # 🆘 STEP 3: BUILD BACKUP CLINICAL INDEX (HTML PAGES)  
-        # ============================
-        print("🆘 Building BACKUP clinical index from existing HTML pages...")
-        backup_clinical_chunks = []
-        
-        # Use your existing HTML pages directory
-        html_pages_dir = r"C:\Users\sophi\Downloads\Athen_AI\editions\asps_demo\org_data\asps\html_pages"
-        
-        if os.path.exists(html_pages_dir):
-            print(f"✅ Processing existing HTML pages for backup clinical content...")
-            
-            from bs4 import BeautifulSoup
-            
-            html_files = [f for f in os.listdir(html_pages_dir) if f.endswith('.html')]
-            print(f"📄 Processing {len(html_files)} HTML files...")
-            
-            for file in html_files:
-                file_path = os.path.join(html_pages_dir, file)
-                
-                try:
-                    with open(file_path, "r", encoding="utf-8") as f:
-                        soup = BeautifulSoup(f.read(), "html.parser")
-                        
-                        # Extract text from main content areas
-                        content_selectors = ["main", "article", ".content", "p", "div"]
-                        
-                        for selector in content_selectors:
-                            elements = soup.select(selector)
-                            for element in elements:
-                                text = element.get_text(separator=" ", strip=True)
-                                
-                                # Filter for medical/clinical content
-                                medical_keywords = [
-                                    "surgery", "surgical", "procedure", "treatment", "medical",
-                                    "patient", "doctor", "surgeon", "breast", "reconstruction",
-                                    "plastic", "cosmetic", "implant", "flap", "tissue", "skin",
-                                    "operation", "operative", "recovery", "healing", "complications"
-                                ]
-                                
-                                # Check if text contains medical keywords and is substantial
-                                if (len(text.split()) > 20 and 
-                                    any(keyword.lower() in text.lower() for keyword in medical_keywords)):
-                                    
-                                    # Chunk the text into manageable pieces
-                                    chunks = chunk_text_by_words(text, max_words=300)
-                                    for chunk in chunks:
-                                        if is_valid_chunk(chunk) and len(chunk.split()) > 15:
-                                            backup_clinical_chunks.append(chunk)
-                                            
-                except Exception as e:
-                    print(f"⚠️ Failed to process {file}: {e}")
-                    continue
-        else:
-            print(f"⚠️ HTML pages directory not found: {html_pages_dir}")
-            print("💡 Backup clinical index will be minimal")
-        
-        # Remove duplicates
-        backup_clinical_chunks = list(dict.fromkeys(backup_clinical_chunks))
-        
-        # Build backup clinical index
-        if backup_clinical_chunks:
-            print(f"🔢 Building BACKUP clinical index with {len(backup_clinical_chunks)} chunks...")
-            backup_clinical_embeddings = embed_model.encode(backup_clinical_chunks, show_progress_bar=True)
-            backup_clinical_index = faiss.IndexFlatL2(backup_clinical_embeddings.shape[1])
-            backup_clinical_index.add(np.array(backup_clinical_embeddings))
-        else:
-            print("⚠️ No backup clinical chunks found - creating minimal backup")
-            backup_clinical_chunks = ["No backup clinical data available from HTML pages"]
-            backup_clinical_embeddings = embed_model.encode(backup_clinical_chunks)
-            backup_clinical_index = faiss.IndexFlatL2(backup_clinical_embeddings.shape[1])
-            backup_clinical_index.add(np.array(backup_clinical_embeddings))
 
-        # Store in global memory (three-tier system: clinical + navigation + backup_clinical)
+        # Store in global memory (TWO-TIER SYSTEM: clinical + navigation)
         ORG_FAISS_INDEXES[org_id] = {
             "clinical": clinical_index,
-            "navigation": navigation_index,
-            "backup_clinical": backup_clinical_index
+            "navigation": navigation_index
         }
         ORG_CHUNKS[org_id] = {
             "clinical": clinical_chunks,
-            "navigation": navigation_chunks,
-            "backup_clinical": backup_clinical_chunks
+            "navigation": navigation_chunks
         }
         ORG_EMBEDDINGS[org_id] = {
             "clinical": clinical_embeddings,
-            "navigation": navigation_embeddings,
-            "backup_clinical": backup_clinical_embeddings
+            "navigation": navigation_embeddings
         }
         
         print(f"✅ Successfully loaded GitHub knowledge bases into memory!")
-        print(f"🎯 Ready for THREE-TIER clinical system queries!")
-        print(f"   📚 Primary Clinical chunks: {len(clinical_chunks)} (training materials)")
+        print(f"🎯 Ready for TWO-TIER system queries!")
+        print(f"   📚 Clinical chunks: {len(clinical_chunks)} (training materials)")
         print(f"   🧭 Navigation chunks: {len(navigation_chunks)} (website content)")
-        print(f"   🆘 Backup Clinical chunks: {len(backup_clinical_chunks)} (HTML pages)")
         
         return True
         
