@@ -2239,10 +2239,45 @@ def load_github_knowledge_bases_into_memory(org_id="asps"):
         
         # STEP 1: Try to load split files first (preferred method)
         print("🔍 Checking for split knowledge base files...")
-        print(f"   Looking in directory: {paths['base']}")
+        print(f"   Looking in repository root and org_data directory...")
         split_files_loaded = False
         
         for filename, content_type in split_files_to_load:
+            file_path = None
+            
+            # First check repository root (where files actually are)
+            if os.path.exists(filename):
+                file_path = filename
+                print(f"   ✅ Found {filename} in repository root")
+            # Then check org_data/asps/ directory
+            elif os.path.exists(os.path.join(paths["base"], filename)):
+                file_path = os.path.join(paths["base"], filename)
+                print(f"   ✅ Found {filename} in org_data/asps/")
+            else:
+                print(f"   ❌ Not found: {filename}")
+                continue
+            
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    chunk_data = json.load(f)
+                
+                if isinstance(chunk_data, list):
+                    chunks = chunk_data
+                else:
+                    # Handle different JSON structures
+                    chunks = chunk_data.get('chunks', chunk_data.get('data', [chunk_data]))
+                
+                if content_type == "navigation":
+                    navigation_chunks.extend(chunks)
+                else:
+                    clinical_chunks.extend(chunks)
+                
+                print(f"   ✅ Loaded {len(chunks)} chunks from {filename}")
+                split_files_loaded = True
+                
+            except Exception as e:
+                print(f"   ❌ Error loading {filename}: {e}")
+                continue
             file_path = os.path.join(paths["base"], filename)
             print(f"      Looking for: {filename} at {file_path}")
             
@@ -2280,6 +2315,48 @@ def load_github_knowledge_bases_into_memory(org_id="asps"):
         print("📄 Loading individual navigation JSON files...")
         
         for filename, content_type in kb_files:
+            file_path = None
+            
+            # First check repository root (where files actually are)
+            if os.path.exists(filename):
+                file_path = filename
+                print(f"   📄 Loading {filename} from repository root...")
+            # Then check org_data/asps/ directory  
+            elif os.path.exists(os.path.join(paths["base"], filename)):
+                file_path = os.path.join(paths["base"], filename)
+                print(f"   📄 Loading {filename} from org_data/asps/...")
+            else:
+                print(f"   ⚠️ {filename} not found, skipping...")
+                continue
+            
+            try:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    kb_data = json.load(f)
+                
+                # Extract chunks from different JSON structures
+                if isinstance(kb_data, list):
+                    chunks = kb_data
+                elif isinstance(kb_data, dict):
+                    if 'chunks' in kb_data:
+                        chunks = kb_data['chunks']
+                    elif 'data' in kb_data:
+                        chunks = kb_data['data']
+                    else:
+                        chunks = [kb_data]
+                else:
+                    chunks = [kb_data]
+                
+                # Add chunks to appropriate index
+                if content_type == "navigation":
+                    navigation_chunks.extend(chunks)
+                else:
+                    clinical_chunks.extend(chunks)
+                
+                print(f"   ✅ Processed {len(chunks)} chunks from {filename}")
+                
+            except Exception as e:
+                print(f"   ❌ Error loading {filename}: {e}")
+                continue
             file_path = os.path.join(paths["base"], filename)
             
             if os.path.exists(file_path):
