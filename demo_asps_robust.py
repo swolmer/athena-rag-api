@@ -13,6 +13,16 @@ Version: 2.0.0 - Production Ready
 """
 
 # ============================
+# 📦 CRITICAL IMPORTS FIRST
+# ============================
+
+# Essential imports that must be available everywhere
+import numpy as np
+import pandas as pd
+import os
+import sys
+
+# ============================
 # 📦 CONSOLIDATED IMPORTS
 # ============================
 
