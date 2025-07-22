@@ -134,7 +134,7 @@ class SystemConfig:
     HF_CACHE: str = "/workspace/huggingface_cache"
     
     # GitHub Integration
-    GITHUB_ENABLED: bool = bool(GITHUB_TOKEN)
+    GITHUB_ENABLED: bool = bool(os.getenv("GITHUB_TOKEN"))
     TEMP_CLONE_DIR: str = os.path.join(BASE_DIR, "temp_github_clone")
 
 # Initialize configuration
