@@ -42,30 +42,16 @@ import fitz
 # 📦 CONSOLIDATED IMPORTS
 # ============================
 
-# Core Python Libraries
-import os
-import sys
-import json
-import logging
-import pickle
-import re
-import traceback
-import concurrent.futures
+# Core Python Libraries (non-duplicated)
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union, Any
 from dataclasses import dataclass
 from enum import Enum
 
-# Scientific Computing
-import numpy as np
-import pandas as pd
-import torch
-import faiss
+# Scientific Computing (non-duplicated)
 from sklearn.metrics.pairwise import cosine_similarity
 
-# Natural Language Processing
-import nltk
-import nltk.data
+# Natural Language Processing (non-duplicated)
 from sentence_transformers import SentenceTransformer
 
 # Machine Learning & Transformers
@@ -77,8 +63,7 @@ from transformers import (
     TrainingArguments
 )
 
-# Document Processing
-import fitz  # PyMuPDF
+# Document Processing (non-duplicated)
 from PIL import Image
 from docx import Document
 try:
@@ -86,15 +71,13 @@ try:
 except ImportError:
     pytesseract = None
 
-# Web & API
-import requests
+# Web & API (non-duplicated)
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
-import uvicorn
 
 # Environment & Configuration
 from dotenv import load_dotenv
@@ -459,7 +442,7 @@ class ModelManager:
             logger.error(f"❌ Embedding model loading failed: {e}")
             raise
     
-    def encode_texts(self, texts: Union[str, List[str]], **kwargs) -> np.ndarray:
+    def encode_texts(self, texts: Union[str, List[str]], **kwargs) -> numpy.ndarray:
         """Safe text encoding with error handling"""
         if self.embedding_model is None:
             raise RuntimeError("Embedding model not initialized")
@@ -980,7 +963,7 @@ class KnowledgeBaseBuilder:
         # Build FAISS index
         dimension = embeddings.shape[1]
         faiss_index = faiss.IndexFlatL2(dimension)
-        faiss_index.add(embeddings.astype(np.float32))
+        faiss_index.add(embeddings.astype(numpy.float32))
         
         # Save to disk
         self._save_knowledge_base(unique_chunks, embeddings, faiss_index, kb_type)
@@ -996,7 +979,7 @@ class KnowledgeBaseBuilder:
     def _save_knowledge_base(
         self, 
         chunks: List[str], 
-        embeddings: np.ndarray, 
+        embeddings: numpy.ndarray, 
         faiss_index: faiss.Index, 
         kb_type: str
     ) -> None:
@@ -1009,7 +992,7 @@ class KnowledgeBaseBuilder:
             with open(chunks_path, "wb") as f:
                 pickle.dump(chunks, f)
             
-            np.save(embeddings_path, embeddings)
+            numpy.save(embeddings_path, embeddings)
             faiss.write_index(faiss_index, str(index_path))
             
             logger.info(f"💾 {kb_type.capitalize()} knowledge base saved to disk")
@@ -1056,7 +1039,7 @@ class RetrievalSystem:
             
             # Search FAISS index
             distances, indices = knowledge_base.faiss_index.search(
-                query_embedding.astype(np.float32), 
+                query_embedding.astype(numpy.float32), 
                 min(CONFIG.INITIAL_K, knowledge_base.size)
             )
             
