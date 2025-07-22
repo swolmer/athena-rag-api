@@ -17,7 +17,7 @@ Version: 2.0.0 - Production Ready
 # ============================
 
 # Essential imports that must be available everywhere
-import numpy as np
+import numpy
 import pandas as pd
 import os
 import sys
@@ -37,10 +37,6 @@ import shutil
 import requests
 import uvicorn
 import fitz
-import numpy as np
-import pandas as pd
-import os
-import sys
 
 # ============================
 # 📦 CONSOLIDATED IMPORTS
@@ -200,7 +196,7 @@ class SystemStatus(Enum):
 class KnowledgeBase:
     """Represents a knowledge base with its components"""
     chunks: List[str]
-    embeddings: np.ndarray
+    embeddings: numpy.ndarray
     faiss_index: faiss.Index
     
     @property
