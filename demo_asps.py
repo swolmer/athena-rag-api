@@ -15,7 +15,75 @@ import traceback
 import urllib.request
 import time
 import concurrent.futures
+import subprocess
 from pathlib import Path
+
+# ===== Google Drive API Imports =====
+from googleapiclient.discovery import build
+from google.oauth2 import service_account
+from googleapiclient.http import MediaIoBaseDownload
+import io
+import tempfile
+
+
+def sync_google_drive():
+    """
+    Automatically sync all files from Google Drive using rclone remote 17.
+    This runs before loading knowledge bases to ensure we have the latest data.
+    """
+    print("🔄 Syncing from Google Drive remote (rclone remote: 17)...")
+    
+    # Create target directory for synced data
+    target_dir = os.path.join(os.getcwd(), "gdrive_data")
+    os.makedirs(target_dir, exist_ok=True)
+    
+    try:
+        # Run rclone copy command to sync from remote 17
+        result = subprocess.run([
+            "rclone", "copy", "17:", target_dir, 
+            "--drive-shared-with-me",
+            "--progress"
+        ], stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=300)
+        
+        if result.returncode == 0:
+            print("✅ Google Drive sync complete!")
+            
+            # List what was synced
+            if os.path.exists(target_dir):
+                synced_items = os.listdir(target_dir)
+                print(f"📁 Synced {len(synced_items)} items to {target_dir}")
+                for item in synced_items[:10]:  # Show first 10 items
+                    item_path = os.path.join(target_dir, item)
+                    if os.path.isdir(item_path):
+                        print(f"   📁 {item}/")
+                    else:
+                        size_mb = os.path.getsize(item_path) / (1024 * 1024)
+                        print(f"   📄 {item} ({size_mb:.1f} MB)")
+                if len(synced_items) > 10:
+                    print(f"   ... and {len(synced_items) - 10} more items")
+            
+            return True
+            
+        else:
+            print("❌ Google Drive sync failed:")
+            print(f"Return code: {result.returncode}")
+            print(f"Error: {result.stderr}")
+            return False
+            
+    except subprocess.TimeoutExpired:
+        print("⏰ Google Drive sync timed out after 5 minutes")
+        return False
+    except FileNotFoundError:
+        print("❌ rclone not found. Please install rclone and configure remote 17")
+        print("📋 Setup instructions:")
+        print("   1. Install rclone: https://rclone.org/downloads/")
+        print("   2. Run: rclone config")
+        print("   3. Set up Google Drive remote as '17'")
+        return False
+    except Exception as e:
+        print(f"❌ Google Drive sync error: {e}")
+        return False
+
 
 # --- Environment variables setup ---
 from dotenv import load_dotenv
@@ -1531,6 +1599,107 @@ import traceback
 import numpy as np
 import faiss
 
+def load_clinical_data_from_gdrive():
+    """
+    Loads clinical training data from rclone synced Google Drive folder.
+    First syncs data using rclone, then processes local files.
+    """
+    try:
+        print("📚 Loading clinical training data from Google Drive...")
+        
+        # First, sync data from Google Drive using rclone
+        sync_success = sync_google_drive()
+        
+        if not sync_success:
+            print("⚠️ Google Drive sync failed, checking for existing synced data...")
+        
+        # Look for synced data directory
+        gdrive_data_dir = os.path.join(os.getcwd(), "gdrive_data")
+        
+        if not os.path.exists(gdrive_data_dir):
+            print("❌ No synced Google Drive data found")
+            return []
+        
+        clinical_chunks = []
+        
+        # Look for clinical training directories in synced data
+        clinical_dirs = [
+            "clinical",
+            "Training Data Op",
+            "textbook notes", 
+            "Validate",
+            "op notes"
+        ]
+        
+        print(f"📂 Processing synced data from: {gdrive_data_dir}")
+        
+        # Process all files in the synced directory
+        for root, dirs, files in os.walk(gdrive_data_dir):
+            for file in files:
+                file_path = os.path.join(root, file)
+                file_name = file
+                
+                print(f"📥 Processing: {file_name}")
+                
+                raw_text = ""
+                
+                if file.lower().endswith(".pdf"):
+                    try:
+                        import fitz
+                        with fitz.open(file_path) as doc:
+                            for page in doc:
+                                raw_text += page.get_text()
+                        print(f"   ✅ Extracted {len(raw_text)} characters from PDF")
+                    except ImportError:
+                        print(f"   ❌ PyMuPDF not available for PDF processing")
+                        continue
+                elif file.lower().endswith(".docx"):
+                    try:
+                        from docx import Document
+                        doc = Document(file_path)
+                        raw_text = "\n".join(p.text for p in doc.paragraphs)
+                        print(f"   ✅ Extracted {len(raw_text)} characters from DOCX")
+                    except ImportError:
+                        print(f"   ❌ python-docx not available for DOCX processing")
+                        continue
+                elif file.lower().endswith((".png", ".jpg", ".jpeg")):
+                    try:
+                        from PIL import Image
+                        import pytesseract
+                        image = Image.open(file_path)
+                        raw_text = pytesseract.image_to_string(image)
+                        print(f"   ✅ Extracted {len(raw_text)} characters from image")
+                    except ImportError:
+                        print(f"   ❌ PIL/pytesseract not available for image processing")
+                        continue
+                elif file.lower().endswith(".txt"):
+                    try:
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            raw_text = f.read()
+                        print(f"   ✅ Extracted {len(raw_text)} characters from text file")
+                    except Exception as e:
+                        print(f"   ❌ Error reading text file: {e}")
+                        continue
+                else:
+                    print(f"   ⚠️ Skipping unsupported file type: {file}")
+                    continue
+
+                if raw_text and raw_text.strip():
+                    chunks = chunk_text_by_words(raw_text, max_words=800)
+                    valid_chunks = [c for c in chunks if is_valid_chunk(c)]
+                    clinical_chunks.extend(valid_chunks)
+                    print(f"   ✅ Added {len(valid_chunks)} chunks from {file_name}")
+                else:
+                    print(f"   ⚠️ No text extracted from {file_name}")
+        
+        print(f"📊 Total clinical chunks extracted from Google Drive: {len(clinical_chunks)}")
+        return clinical_chunks
+
+    except Exception as e:
+        print(f"❌ Error loading clinical data from Google Drive: {e}")
+        traceback.print_exc()
+        return []
+
 def load_github_knowledge_bases():
     """
     Loads navigation JSON knowledge bases and clinical training data,
@@ -1567,19 +1736,54 @@ def load_github_knowledge_bases():
                     with open(filename, 'r', encoding='utf-8') as f:
                         kb_data = json.load(f)
 
+                    chunks = []
                     if isinstance(kb_data, list):
-                        chunks = kb_data
+                        # If it's a list, process each item
+                        for item in kb_data:
+                            if isinstance(item, str):
+                                chunks.append(item)
+                            elif isinstance(item, dict):
+                                # Extract text from various possible keys
+                                for key in ['text', 'content', 'data', 'chunk', 'value']:
+                                    if key in item and isinstance(item[key], str):
+                                        chunks.append(item[key])
+                                        break
+                                else:
+                                    # If no text field found, convert whole dict to string
+                                    chunks.append(str(item))
                     elif isinstance(kb_data, dict):
+                        # If it's a dict, try common keys
                         if 'chunks' in kb_data:
                             chunks = kb_data['chunks']
                         elif 'data' in kb_data:
                             chunks = kb_data['data']
+                        elif 'content' in kb_data:
+                            chunks = kb_data['content']
+                        elif 'text' in kb_data:
+                            chunks = [kb_data['text']]
                         else:
-                            chunks = [kb_data]
+                            # If it's a dict with unknown structure, extract all string values
+                            for key, value in kb_data.items():
+                                if isinstance(value, str) and len(value) > 50:  # Only meaningful text
+                                    chunks.append(value)
+                                elif isinstance(value, list):
+                                    for item in value:
+                                        if isinstance(item, str):
+                                            chunks.append(item)
                     else:
-                        chunks = [kb_data]
+                        chunks = [str(kb_data)]
 
-                    string_chunks = [c for c in chunks if isinstance(c, str)]
+                    # Ensure all chunks are strings and filter out empty ones
+                    string_chunks = []
+                    for chunk in chunks:
+                        if isinstance(chunk, str) and chunk.strip() and len(chunk.strip()) > 20:
+                            string_chunks.append(chunk.strip())
+                        elif not isinstance(chunk, str):
+                            # Convert non-strings to strings if they look meaningful
+                            chunk_str = str(chunk)
+                            if len(chunk_str) > 20:
+                                string_chunks.append(chunk_str)
+                    
                     navigation_chunks.extend(string_chunks)
                     print(f"   ✅ Loaded {len(string_chunks)} string chunks from {filename}")
 
@@ -1589,48 +1793,9 @@ def load_github_knowledge_bases():
             else:
                 print(f"   ⚠️ {filename} not found, skipping...")
 
-        # Clinical directories to load text from
-        clinical_training_dirs = [
-            "Training Data Op",
-            "Training Data Textbooks",
-            "Validate",
-            "op notes",
-            "textbook notes",
-            "clinical"
-        ]
-
-        print("📚 Loading clinical training directories and extracting text...")
-
-        for dir_name in clinical_training_dirs:
-            if os.path.exists(dir_name):
-                print(f"✅ Found clinical directory: {dir_name}")
-
-                for root, _, files in os.walk(dir_name):
-                    for file in files:
-                        file_path = os.path.join(root, file)
-                        raw_text = ""
-
-                        if file.lower().endswith(".pdf"):
-                            print(f"   📄 Processing PDF: {file}")
-                            raw_text = extract_text_from_pdf(file_path)
-                        elif file.lower().endswith(".docx"):
-                            print(f"   📝 Processing DOCX: {file}")
-                            raw_text = extract_text_from_docx(file_path)
-                        elif file.lower().endswith((".png", ".jpg", ".jpeg")):
-                            print(f"   🖼️ Processing image: {file}")
-                            raw_text = extract_text_from_image(file_path)
-                        else:
-                            continue
-
-                        if raw_text and raw_text.strip():
-                            chunks = chunk_text_by_words(raw_text, max_words=800)
-                            valid_chunks = [c for c in chunks if is_valid_chunk(c)]
-                            clinical_chunks.extend(valid_chunks)
-                            print(f"      ✅ Added {len(valid_chunks)} chunks from {file}")
-                        else:
-                            print(f"      ⚠️ No text extracted from {file}")
-            else:
-                print(f"⚠️ Clinical directory not found: {dir_name}")
+        # Load clinical training data from Google Drive
+        print("📚 Loading clinical training data from Google Drive folder...")
+        clinical_chunks = load_clinical_data_from_gdrive()
 
         # Deduplicate chunks safely
         navigation_chunks = list(dict.fromkeys(navigation_chunks))
@@ -2028,6 +2193,21 @@ import uvicorn
 def main():
     print("🏥 ASPS MEDICAL AI CHATBOT - CLINICAL/NAVIGATION DUAL SYSTEM")
     print("=" * 70)
+    
+    # Test rclone connectivity before starting
+    print("🔧 Pre-flight check: Testing rclone connectivity...")
+    try:
+        result = subprocess.run(["rclone", "lsf", "17:"], 
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE, 
+                              text=True, timeout=30)
+        if result.returncode == 0:
+            file_count = len(result.stdout.strip().split('\n')) if result.stdout.strip() else 0
+            print(f"✅ rclone remote '17' connected - {file_count} items available")
+        else:
+            print("⚠️ rclone remote '17' connection issue - will use existing data")
+    except (subprocess.TimeoutExpired, FileNotFoundError):
+        print("⚠️ rclone not available - will use existing local data")
+    
     print("🎯 System Overview:")
     print("   • CLINICAL questions → Training materials FAISS index")
     print("   • NAVIGATION questions → Website knowledge FAISS index")  
@@ -2035,10 +2215,11 @@ def main():
     print("   • Mistral-7B powered medical responses")
     print("")
     print("📊 Data Sources:")
-    print("   📚 Clinical: Training materials (PDFs/DOCX in clinical training directories)")
+    print("   📚 Clinical: Google Drive sync via rclone (remote 17)")
     print("   🧭 Navigation: ASPS website content (nav1.json, nav2.json, navigation_training_data.json)")
     print("")
     print("🔧 Key Components:")
+    print("   🔄 sync_google_drive() - Auto-sync from Google Drive")
     print("   🎯 classify_question_intent() - Routes questions")
     print("   📚 load_github_knowledge_bases() - Simple dual FAISS setup")
     print("   🔍 retrieve_context() - Intent-based retrieval")
