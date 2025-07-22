@@ -86,6 +86,10 @@ from urllib.parse import urlparse
 # Load environment variables
 load_dotenv()
 
+# Ensure numpy is available (backup import)
+import numpy as np
+import pandas as pd
+
 # Get GitHub token from environment (using your personal access token)
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN") or os.getenv("GITHUB_PAT") or "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"
 GITHUB_REPO_URL = os.getenv("GITHUB_REPO_URL", "https://github.com/swolmer/athena-rag-api.git")
