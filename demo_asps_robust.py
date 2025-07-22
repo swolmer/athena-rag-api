@@ -21,6 +21,26 @@ import numpy as np
 import pandas as pd
 import os
 import sys
+import json
+import logging
+import pickle
+import re
+import traceback
+import concurrent.futures
+import torch
+import faiss
+import nltk
+import nltk.data
+import subprocess
+import tempfile
+import shutil
+import requests
+import uvicorn
+import fitz
+import numpy as np
+import pandas as pd
+import os
+import sys
 
 # ============================
 # 📦 CONSOLIDATED IMPORTS
