@@ -13,11 +13,7 @@ import zipfile
 import shutil
 import traceback
 import urllib.request
-import time
-import concurrent.futures
-import subprocess
 from pathlib import Path
-
 
 # --- Environment variables setup ---
 from dotenv import load_dotenv
@@ -163,6 +159,7 @@ def get_data_paths():
         "clinical_index_faiss": os.path.join(base, "clinical_index.faiss"),
         "navigation_index_faiss": os.path.join(base, "navigation_index.faiss"),
     }
+
 # ============================
 # 🛠️ 3. CONFIGURATION — SIMPLIFIED
 # ============================
@@ -216,28 +213,52 @@ def get_clinical_dirs():
         "textbook notes"
     ]
 # ============================
-# 5. GLOBAL TOKENIZER & MODEL
+# 5. GLOBAL TOKENIZER & MODEL WITH ERROR HANDLING
 # ============================
 
 from transformers import AutoTokenizer, AutoModelForCausalLM
+import os
 
-# Load the shared tokenizer for the LLM model
-tokenizer = AutoTokenizer.from_pretrained(LLM_MODEL_NAME)
-# Set pad token to eos token if not defined to avoid warnings during training/inference
-if tokenizer.pad_token is None:
-    tokenizer.pad_token = tokenizer.eos_token
-tokenizer.padding_side = "right"  # Pad on the right side for causal models
+# Initialize with None, will be set if loading succeeds
+tokenizer = None
+rag_model = None
 
-# Load the shared causal language model with half-precision and device mapping
-rag_model = AutoModelForCausalLM.from_pretrained(
-    LLM_MODEL_NAME,
-    torch_dtype=torch.float16,
-    device_map="auto",       # Automatically places model layers on available devices (GPU/CPU)
-    trust_remote_code=True   # Trusts custom code in the repo (required for some models)
-)
+try:
+    # Load environment variables for authentication
+    from dotenv import load_dotenv
+    load_dotenv()
+    
+    print(f"🔄 Loading tokenizer from {LLM_MODEL_NAME}...")
+    tokenizer = AutoTokenizer.from_pretrained(LLM_MODEL_NAME)
+    
+    # Set pad token to eos token if not defined to avoid warnings during training/inference
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token
+    tokenizer.padding_side = "right"  # Pad on the right side for causal models
+    print("✅ Tokenizer loaded successfully!")
+
+    print(f"🔄 Loading language model from {LLM_MODEL_NAME}...")
+    # Load the shared causal language model with half-precision and device mapping
+    rag_model = AutoModelForCausalLM.from_pretrained(
+        LLM_MODEL_NAME,
+        torch_dtype=torch.float16,
+        device_map="auto",       # Automatically places model layers on available devices (GPU/CPU)
+        trust_remote_code=True   # Trusts custom code in the repo (required for some models)
+    )
+    print("✅ Language model loaded successfully!")
+
+except Exception as e:
+    print(f"❌ Failed to load model or tokenizer: {e}")
+    print("💡 Please ensure:")
+    print("   1. Your Hugging Face token is valid and in .env file")
+    print("   2. You have access to the model repository")
+    print("   3. You have sufficient GPU memory or use CPU fallback")
+    tokenizer = None
+    rag_model = None
 
 # Export tokenizer and model for imports
 __all__ = ["tokenizer", "rag_model"]
+
 
 # ============================
 # 6. GLOBAL EMBEDDING MODEL
@@ -259,6 +280,7 @@ try:
 except Exception as e:
     logging.error(f"❌ Failed to load embedding model '{EMBEDDING_MODEL_NAME}': {e}")
     embed_model = None  # Fallback to None if loading fails
+
 # ============================
 # 7. UTILITIES — GENERAL TEXT CHUNKING AND VALIDATION
 # ============================
@@ -355,132 +377,62 @@ def chunk_text_by_words(text, max_words=200, overlap=50, min_words=20):
     
     print(f"      🎯 Total chunks created: {len(chunks)}")
     return chunks
+
 # ============================
-# 🎯 ENHANCED INTENT CLASSIFICATION AND CLINICAL CHUNK VALIDATION FOR SURGICAL MATERIALS
+# 🎯 ENHANCED INTENT CLASSIFICATION FOR CLINICAL VS NAVIGATION
 # ============================
-
-# Expanded clinical keywords tailored for surgery and specialized medical content
-clinical_keywords = [
-    # General surgical and medical terms
-    "surgery", "procedure", "surgical", "operation", "technique", "method",
-    "recovery", "healing", "risks", "complications", "anesthesia",
-    "post-operative", "pre-operative", "aftercare", "treatment",
-    "medical", "diagnosis", "symptoms", "patient", "tissue", "skin",
-    "muscle", "bone", "reconstruction", "implant", "graft", "flap",
-    "rhinoplasty", "facelift", "liposuction", "augmentation", "reduction",
-    "mastectomy", "tummy tuck", "breast lift",
-    # Added specialized surgical jargon
-    "hemostasis", "laparoscopic", "thoracotomy", "biopsy", "debridement",
-    "anastomosis", "prosthesis", "flap viability", "vascularized",
-    "incision", "suturing", "drainage", "dissection", "graft rejection",
-    "postoperative infection", "aseptic technique", "microsurgery",
-    "transplantation", "oncologic", "perioperative", "sterile field",
-    "surgical site infection", "catheterization",
-    # Additional surgical keywords
-    "arthroscopy", "endoscopy", "thoracoscopy", "catheterization",
-    "angioplasty", "stenting", "craniotomy", "amputation",
-    "embolization", "resection", "excision", "ligation",
-    "sutures", "vascular", "cardiothoracic", "general surgery",
-    "edema", "hematoma", "seroma", "infection", "necrosis", "dehiscence",
-    "scarring", "adhesion", "pain management", "rehabilitation", "follow-up",
-    "postoperative care", "wound care", "antibiotics", "analgesics",
-    "fascia", "ligament", "tendon", "nerve", "artery", "vein",
-    "cartilage", "bone marrow", "dermis", "epidermis", "subcutaneous",
-    "x-ray", "mri", "ct scan", "ultrasound", "angiography", "pathology",
-    "histology", "blood pressure", "pulse", "temperature", "oxygen saturation",
-    "lab values", "hemoglobin", "white blood cell count", "platelets",
-    "glucose", "consent", "triage", "sedation", "intubation", "monitoring",
-    "sterilization", "infection control", "carcinoma", "tumor", "malignancy",
-    "benign", "cyst", "abscess", "hernia", "fracture", "ulcer", "ischemia",
-    "thrombosis", "embolism"
-]
-
-clinical_phrases = [
-    "what is", "how is performed", "what are the risks", "recovery time",
-    "surgical technique", "medical procedure", "complications of",
-    "surgical intervention", "operative technique", "postoperative complications",
-    "clinical outcomes", "risk factors", "patient management", "wound healing",
-    "reconstructive procedure", "tissue viability", "functional recovery"
-]
-
-navigation_keywords = [
-    # Location & contact
-    "address", "directions", "map", "location", "parking", "office hours",
-    "phone number", "email address", "contact us", "fax", "reception",
-    "customer service", "help desk", "support", "online chat",
-    # Scheduling & appointments
-    "appointment", "booking", "schedule", "availability", "consultation",
-    "reschedule", "cancel", "waitlist", "walk-in", "virtual visit",
-    "telemedicine", "follow-up appointment",
-    # Payment & insurance
-    "cost", "price", "billing", "invoice", "payment options", "insurance coverage",
-    "copay", "deductible", "financing", "payment plan", "refund policy",
-    "billing department",
-    # Membership & certification
-    "membership benefits", "how to join", "certification process", "board certified",
-    "accreditation", "awards", "honors", "member directory",
-    # Website usage
-    "login", "sign up", "register", "account", "password reset", "privacy policy",
-    "terms of service", "cookie policy", "accessibility", "site map",
-    "user guide", "faq", "help", "tutorial", "demo",
-    # Resources & education
-    "news", "events", "webinars", "training courses", "education center",
-    "research", "publications", "clinical trials", "patient resources",
-    "support groups", "videos", "blog", "newsletter",
-    # Specific ASPS and plastic surgery terms
-    "plastic surgery", "cosmetic procedures", "board of directors",
-    "foundation", "community outreach", "public policy", "advocacy",
-    "research grants", "annual meeting", "conference",
-    # Media & social
-    "press releases", "media kit", "social media", "facebook", "twitter",
-    "instagram", "youtube", "linkedin",
-    # Tools and interactive features
-    "cost calculator", "surgeon finder", "before and after gallery",
-    "procedure guide", "symptom checker", "interactive map",
-    "patient portal", "virtual consultation", "live chat",
-    # Navigation & site structure
-    "home page", "about us", "contact page", "privacy statement",
-    "terms and conditions", "disclaimer", "site navigation",
-    "search bar", "breadcrumbs", "footer links", "header menu",
-    # General navigation terms
-    "find", "locate", "search", "near me", "in my area", "directory",
-    "surgeon", "doctor", "physician", "specialist", "clinic", "hospital",
-    "cost", "price", "fee", "payment", "insurance", "financing", "affordable",
-    "contact", "phone", "email", "address", "location", "hours", "available",
-    "about", "asps", "membership", "certification", "accreditation",
-    "foundation", "news", "updates", "events", "education", "training",
-    "how to", "where can i", "who should i", "when should i",
-    "website", "site", "plasticsurgery.org", "online", "web",
-    "photos", "pictures", "gallery", "before and after", "results",
-    "tool", "feature", "section", "page", "navigate", "access"
-]
-
-navigation_phrases = [
-    "how to find a surgeon", "where can i schedule an appointment", "how much does it cost",
-    "what is the price for", "where is the clinic located", "how to contact support",
-    "how to use the patient portal", "how to reset my password",
-    "where can i see before and after photos", "how to navigate the website",
-    "how do i book a consultation", "where to find pricing information",
-    "how do i access my account", "how to join the membership",
-    "find a surgeon", "cost of", "price of", "how much", "where to",
-    "contact information", "make appointment", "schedule consultation",
-    "where are the", "where can i see", "where exactly", "how do i use",
-    "on the website", "on plasticsurgery.org", "before and after photos",
-    "photo gallery", "find a tool", "use the tool", "navigate to",
-    "where is the", "how to access", "where to find"
-]
 
 def classify_question_intent(question: str) -> str:
     """
-    Classify question intent as 'clinical' or 'navigation' with emphasis on surgical content.
-    Uses weighted keyword and phrase matching plus heuristics.
+    Classifies a user question as either 'clinical' (medical content)
+    or 'navigation' (website, costs, location, general info).
+
+    Uses keyword and phrase matching with weighted scores.
     """
+    clinical_keywords = [
+        "surgery", "procedure", "surgical", "operation", "technique", "method",
+        "recovery", "healing", "risks", "complications", "anesthesia",
+        "post-operative", "pre-operative", "aftercare", "treatment",
+        "medical", "diagnosis", "symptoms", "patient", "tissue", "skin",
+        "muscle", "bone", "reconstruction", "implant", "graft", "flap",
+        "rhinoplasty", "facelift", "liposuction", "augmentation", "reduction",
+        "mastectomy", "tummy tuck", "breast lift"
+    ]
+
+    navigation_keywords = [
+        "find", "locate", "search", "near me", "in my area", "directory",
+        "surgeon", "doctor", "physician", "specialist", "clinic", "hospital",
+        "cost", "price", "fee", "payment", "insurance", "financing", "affordable",
+        "appointment", "consultation", "schedule", "book", "contact",
+        "phone", "email", "address", "location", "hours", "available",
+        "about", "asps", "membership", "certification", "accreditation",
+        "foundation", "news", "updates", "events", "education", "training",
+        "how to", "where can i", "who should i", "when should i",
+        "website", "site", "plasticsurgery.org", "online", "web",
+        "photos", "pictures", "gallery", "before and after", "results",
+        "tool", "feature", "section", "page", "navigate", "access"
+    ]
+
+    clinical_phrases = [
+        "what is", "how is performed", "what are the risks", "recovery time",
+        "surgical technique", "medical procedure", "complications of"
+    ]
+
+    navigation_phrases = [
+        "find a surgeon", "cost of", "price of", "how much", "where to",
+        "contact information", "make appointment", "schedule consultation",
+        "where are the", "where can i see", "where exactly", "how do i use",
+        "on the website", "on plasticsurgery.org", "before and after photos",
+        "photo gallery", "find a tool", "use the tool", "navigate to",
+        "where is the", "how to access", "where to find"
+    ]
+
     question_lower = question.lower()
 
     clinical_score = sum(2 for kw in clinical_keywords if kw in question_lower)
-    clinical_score += sum(5 for ph in clinical_phrases if ph in question_lower)
-
     navigation_score = sum(2 for kw in navigation_keywords if kw in question_lower)
+
+    clinical_score += sum(5 for ph in clinical_phrases if ph in question_lower)
     navigation_score += sum(5 for ph in navigation_phrases if ph in question_lower)
 
     if "?" in question and any(w in question_lower for w in ["how", "what", "when", "where", "why"]):
@@ -504,50 +456,51 @@ def classify_question_intent(question: str) -> str:
     return "clinical" if clinical_score > navigation_score else "navigation"
 
 
-def is_valid_chunk(text: str, min_word_count: int = 15) -> bool:
+def extract_text_from_html(html_path):
     """
-    Validates clinical text chunks ensuring sufficient length and presence of clinical keywords.
-    Filters out generic or irrelevant chunks.
-
-    Args:
-        text (str): Text chunk to validate.
-        min_word_count (int): Minimum words required to be considered valid.
-
-    Returns:
-        bool: True if valid, False otherwise.
+    Extracts meaningful text from an HTML file, primarily
+    from paragraphs inside the <main> tag.
     """
-    if not text or not text.strip():
-        return False
+    import logging
+    from bs4 import BeautifulSoup
 
-    word_count = len(text.split())
-    if word_count < min_word_count:
-        print(f"      ⚠️ Chunk rejected: too short ({word_count} words)")
-        return False
+    try:
+        with open(html_path, "r", encoding="utf-8") as f:
+            soup = BeautifulSoup(f.read(), "html.parser")
+            paragraphs = soup.select("main p")
+            text_blocks = [
+                p.get_text(separator=" ", strip=True)
+                for p in paragraphs
+                if len(p.get_text(strip=True).split()) > 20
+            ]
+            return "\n\n".join(text_blocks)
+    except Exception as e:
+        logging.error(f"❌ HTML extraction failed for {html_path}: {e}")
+        return ""
 
-    text_lower = text.lower()
 
-    skip_phrases = [
-        "table of contents", "copyright", "terms and conditions",
-        "accessibility statement", "website feedback"
-    ]
+def extract_all_text_from_asps_html(html_dir="org_data/asps/html_pages"):
+    """
+    Aggregates all extracted text from ASPS HTML files in the specified directory.
+    """
+    import os
+    import logging
 
-    skip_starts = ["figure", "edition", "samir mardini"]
+    if not os.path.exists(html_dir):
+        raise ValueError(f"❌ HTML directory not found: {html_dir}")
 
-    for phrase in skip_phrases:
-        if phrase in text_lower:
-            print(f"      ⚠️ Chunk rejected: contains '{phrase}'")
-            return False
+    all_text = ""
+    for file in os.listdir(html_dir):
+        if not file.endswith(".html"):
+            continue
+        full_path = os.path.join(html_dir, file)
+        html_text = extract_text_from_html(full_path)
+        if html_text.strip():
+            all_text += "\n\n" + html_text
+        else:
+            logging.warning(f"⚠️ Empty or unreadable HTML: {file}")
 
-    for start in skip_starts:
-        if text_lower.strip().startswith(start):
-            print(f"      ⚠️ Chunk rejected: starts with '{start}'")
-            return False
-
-    if not any(kw in text_lower for kw in clinical_keywords):
-        print("      ⚠️ Chunk rejected: lacks clinical keywords")
-        return False
-
-    return True
+    return all_text
 
 # ============================
 # 8. DATASET CLASS — EFFICIENT & ROBUST FOR CLINICAL QA FINE-TUNING
@@ -752,102 +705,6 @@ def fine_tune_with_trainer(
     trainer.save_model(output_dir)
     tokenizer.save_pretrained(output_dir)
 
-
-# ============================
-# 10. RETRIEVAL FUNCTION — FIXED
-# ============================
-
-import logging
-from sklearn.metrics.pairwise import cosine_similarity
-
-def retrieve_context(query, k=3, initial_k=10, intent=None):
-    """
-    Retrieve k most relevant text chunks based on intent.
-
-    Clinical: search clinical index with similarity threshold.
-    Navigation: search navigation index.
-
-    Args:
-        query (str): Query text.
-        k (int): Number of chunks to return.
-        initial_k (int): Initial number of candidates from FAISS.
-        intent (str or None): 'clinical' or 'navigation'. Auto-detect if None.
-
-    Returns:
-        List[str]: List of relevant text chunks.
-    """
-    if not query or not hasattr(embed_model, "encode"):
-        raise ValueError("Query is empty or embed_model is not initialized.")
-
-    if intent is None:
-        intent = classify_question_intent(query)
-        print(f"🎯 Auto-detected intent: {intent}")
-
-    if intent not in ["clinical", "navigation"]:
-        raise ValueError("`intent` must be 'clinical' or 'navigation'.")
-
-    try:
-        if intent == "clinical":
-            print("🩺 Clinical query: searching clinical index...")
-
-            clinical_index = FAISS_INDEXES.get("clinical")
-            clinical_chunks = CHUNKS.get("clinical")
-            clinical_embeddings = EMBEDDINGS.get("clinical")
-
-            if clinical_index and clinical_chunks and clinical_embeddings is not None:
-                query_emb = embed_model.encode(query, convert_to_tensor=True).cpu().numpy().reshape(1, -1)
-                distances, indices = clinical_index.search(query_emb, initial_k)
-
-                results = []
-                scores = []
-
-                for dist, idx in zip(distances[0], indices[0]):
-                    if idx == -1:
-                        continue
-                    chunk = clinical_chunks[idx]
-                    chunk_emb = clinical_embeddings[idx].reshape(1, -1)
-                    similarity = cosine_similarity(query_emb, chunk_emb)[0][0]
-                    if similarity > 0.3:  # Similarity threshold for quality
-                        results.append(chunk)
-                        scores.append(similarity)
-
-                if results:
-                    ranked = sorted(zip(results, scores), key=lambda x: x[1], reverse=True)
-                    final_results = [chunk for chunk, _ in ranked[:k]]
-                    print(f"✅ Clinical index: {len(final_results)} relevant chunks retrieved")
-                    return final_results
-
-            print("🚨 No sufficient clinical data found, returning empty result")
-            return []
-
-        elif intent == "navigation":
-            print("🧭 Navigation query: searching navigation index...")
-
-            nav_index = FAISS_INDEXES.get("navigation")
-            nav_chunks = CHUNKS.get("navigation")
-            nav_embeddings = EMBEDDINGS.get("navigation")
-
-            if nav_index and nav_chunks and nav_embeddings is not None:
-                query_emb = embed_model.encode(query, convert_to_tensor=True).cpu().numpy().reshape(1, -1)
-                distances, indices = nav_index.search(query_emb, initial_k)
-
-                candidate_chunks = [nav_chunks[i] for i in indices[0] if i != -1]
-                candidate_embeddings = [nav_embeddings[i] for i in indices[0] if i != -1]
-
-                if candidate_chunks:
-                    scores = cosine_similarity(query_emb, candidate_embeddings)[0]
-                    ranked = sorted(zip(candidate_chunks, scores), key=lambda x: x[1], reverse=True)
-                    final_results = [chunk for chunk, _ in ranked[:k]]
-                    print(f"🧭 Navigation index: {len(final_results)} chunks retrieved")
-                    return final_results
-
-            print("⚠️ No navigation data available, returning empty result")
-            return []
-
-    except Exception as e:
-        logging.error(f"❌ Failed to retrieve context for intent '{intent}': {e}")
-        return []
-    
 # ============================
 # 🧪 PROVEN TOKEN VALIDATION
 # ============================
@@ -894,10 +751,9 @@ def validate_proven_token_configuration():
     print("🏥 Ready for high-quality medical AI training and inference")
     print("=" * 60)
 
-# ============================
-# 11. RAG GENERATION — ENHANCED FOR PROFESSIONAL, PATIENT-FRIENDLY ANSWERS
-# ============================
-
+# ===============================================
+# 🧠 SECTION 11 — RAG Generation Function (Mistral)
+# ===============================================
 import torch
 import logging
 import re
@@ -910,14 +766,17 @@ def generate_rag_answer_with_context(
     intent="clinical"
 ):
     """
-    Generate an answer with Retrieval-Augmented Generation (RAG) grounded in context.
+    Generate a medically accurate or navigation-safe answer using Retrieval-Augmented Generation (RAG).
 
-    - Provides professional fallback if no context.
-    - Uses distinct prompts for clinical vs navigation questions, emphasizing empathy and clarity.
-    - Cleans output, filters hallucinations, and truncates to readable length.
+    Features:
+    - Dual intent: clinical vs. navigation
+    - Fall-back safety messages for missing context
+    - Custom, grounded prompts with stepwise logic and empathy
+    - Hallucination filtering using token overlap
+    - Output sanitization and truncation
     """
 
-    # Safety fallback for empty context
+    # ========== SAFETY: Empty Context Fallback ==========
     if not context_chunks:
         if intent == "navigation":
             return (
@@ -932,43 +791,36 @@ def generate_rag_answer_with_context(
             return (
                 "I prioritize your safety and health by not providing medical information I cannot verify from my training materials. "
                 "Rather than risk giving you incorrect clinical guidance, I strongly recommend:\n\n"
-                "🩺 **Consult a board-certified plastic surgeon** - They can provide personalized, evidence-based advice\n"
-                "📚 **Review peer-reviewed medical literature** - Look for recent studies on your specific concern\n"
-                "🏥 **Speak with your healthcare provider** - They know your medical history and current health status\n"
-                "📞 **Contact ASPS** at (847) 228-9900 for surgeon referrals in your area\n\n"
-                "Your health and safety are paramount - professional medical consultation is always the safest approach for clinical questions."
+                "🩺 **Consult a board-certified plastic surgeon**\n"
+                "📚 **Review peer-reviewed medical literature**\n"
+                "🏥 **Speak with your healthcare provider**\n"
+                "📞 **Contact ASPS** at (847) 228-9900 for surgeon referrals\n\n"
+                "Your health and safety are paramount—professional consultation is always best."
             )
 
-    # Prepare context string
+    # ========== PROMPT ENGINEERING ==========
     context = "\n\n".join(f"- {chunk.strip()}" for chunk in context_chunks)
 
-    # Enhanced prompt templates with empathy, clarity, and stepwise explanation
     if intent == "navigation":
         prompt = (
             "You are a knowledgeable and helpful assistant providing guidance about ASPS resources and services.\n"
-            "Write your response in a natural, conversational tone like ChatGPT.\n"
-            "Use only the CONTEXT below to provide clear, actionable information.\n"
-            "Be specific and helpful, giving users practical steps they can take.\n"
-            "Write as if you're having a friendly conversation with someone who needs assistance.\n"
-            "Keep your response focused, informative, and easy to follow.\n\n"
+            "Use only the CONTEXT below. Answer like you're speaking to a real person who needs help.\n"
+            "Be clear, friendly, and provide practical, step-by-step support.\n\n"
             f"### CONTEXT:\n{context}\n\n"
             f"### QUESTION:\n{user_question}\n\n"
             f"### ANSWER:\n"
         )
     else:
         prompt = (
-            "You are a knowledgeable and empathetic medical professional providing clear, accurate, and patient-friendly information.\n"
-            "Use simple language, avoid jargon unless explained, and maintain a reassuring tone.\n"
-            "Explain concepts step-by-step or in logical sequence when applicable.\n"
-            "Use only the CONTEXT below to provide accurate medical information.\n"
-            "Structure your response naturally—avoid rigid formatting or bullet points unless necessary.\n"
-            "Focus on being helpful and educational while maintaining professional medical standards.\n\n"
+            "You are a compassionate medical professional offering accurate and patient-friendly clinical information.\n"
+            "Use only the CONTEXT below. Explain concepts step-by-step and avoid medical jargon unless defined.\n"
+            "Maintain a professional yet calming tone.\n\n"
             f"### CONTEXT:\n{context}\n\n"
             f"### QUESTION:\n{user_question}\n\n"
             f"### ANSWER:\n"
         )
 
-    # Tokenize and move to model device
+    # ========== GENERATE ==========
     inputs = mistral_tokenizer(
         prompt,
         return_tensors="pt",
@@ -976,71 +828,81 @@ def generate_rag_answer_with_context(
         max_length=2048
     ).to(mistral_model.device)
 
-    # Generate with medically tuned decoding parameters
-    with torch.no_grad():
-        outputs = mistral_model.generate(
-            input_ids=inputs["input_ids"],
-            attention_mask=inputs["attention_mask"],
-            max_new_tokens=400,
-            do_sample=True,
-            temperature=0.3,           # Low temperature for accuracy
-            top_p=0.85,                # Tighter nucleus sampling
-            repetition_penalty=1.15,   # Strong repetition penalty
-            eos_token_id=mistral_tokenizer.eos_token_id,
-            pad_token_id=mistral_tokenizer.pad_token_id,
-            early_stopping=True
+    if mistral_model is None or mistral_tokenizer is None:
+        return (
+            "❌ Model not properly loaded. This is likely due to authentication issues. "
+            "Please ensure your Hugging Face token is valid and the model can be accessed."
         )
 
-    decoded = mistral_tokenizer.decode(outputs[0], skip_special_tokens=True)
+    try:
+        with torch.no_grad():
+            outputs = mistral_model.generate(
+                input_ids=inputs["input_ids"],
+                attention_mask=inputs["attention_mask"],
+                max_new_tokens=400,
+                do_sample=True,
+                temperature=0.3,
+                top_p=0.85,
+                repetition_penalty=1.15,
+                eos_token_id=mistral_tokenizer.eos_token_id,
+                pad_token_id=mistral_tokenizer.pad_token_id,
+                early_stopping=True
+            )
 
-    # Extract answer part
-    answer = decoded.split("### ANSWER:")[-1].strip() if "### ANSWER:" in decoded else decoded.strip()
+        decoded = mistral_tokenizer.decode(outputs[0], skip_special_tokens=True)
 
-    # Clean repeated chars and invalid sequences
-    answer = re.sub(r'\b(\d)\s+\1(\s+\1)+', '', answer)       # Remove repeated digits with spaces
-    answer = re.sub(r'(\w)\1{3,}', r'\1', answer)             # Remove excessive repeats
-    answer = re.sub(r'\s+', ' ', answer)                      # Normalize whitespace
-    answer = re.sub(r'\b(the the|and and|of of|in in)\b', lambda m: m.group(0).split()[0], answer)  # Remove repeated words
-    answer = re.sub(r'[^\w\s\.,!?:;()-]', '', answer)         # Remove invalid chars
+        if len(decoded.strip()) == 0:
+            return "❌ Model generation failed — empty output received."
 
-    # Truncate safely after max 8 sentences
+        if "### ANSWER:" in decoded:
+            answer = decoded.split("### ANSWER:")[-1].strip()
+        else:
+            input_text = mistral_tokenizer.decode(inputs["input_ids"][0], skip_special_tokens=True)
+            answer = decoded[len(input_text):].strip() if len(decoded) > len(input_text) else decoded.strip()
+
+    except Exception as e:
+        return f"❌ Error during generation: {str(e)}"
+
+    # ========== SANITIZE OUTPUT ==========
+    answer = re.sub(r'\b(\d)\s+\1(\s+\1)+', '', answer)  # Remove repeated numbers
+    answer = re.sub(r'(\w)\1{3,}', r'\1', answer)        # Remove excessive repeated characters
+    answer = re.sub(r'\s+', ' ', answer)                # Normalize whitespace
+    answer = re.sub(r'\b(the the|and and|of of|in in)\b', lambda m: m.group(0).split()[0], answer)
+    answer = re.sub(r'[^\w\s\.,!?:;()-]', '', answer)
+
+    # Truncate after max 8 sentences
     sentences = re.split(r'(?<=[.!?])\s+', answer)
     answer = " ".join(sentences[:8]).strip() if len(sentences) > 8 else answer.strip()
-
-    # Ensure punctuation ending
     if not answer.endswith(('.', '!', '?')):
         answer += "."
 
-    # Hallucination filter: check token overlap with context
+    # ========== HALLUCINATION FILTER ==========
     answer_tokens = set(re.findall(r"\b\w+\b", answer.lower()))
     context_tokens = set(re.findall(r"\b\w+\b", context.lower()))
     overlap_score = len(answer_tokens & context_tokens) / max(1, len(answer_tokens))
 
     if overlap_score < 0.35:
-        logging.warning("⚠️ Low token overlap detected — possible hallucination.")
+        logging.warning("⚠️ Low token overlap — likely hallucination.")
         if intent == "navigation":
             return (
-                "I don't have enough reliable information to provide accurate guidance about this specific website navigation question. "
-                "Please refer to:\n\n"
-                "📍 **plasticsurgery.org** for official info\n"
-                "🔍 Use their site search\n"
-                "📞 ASPS support at (847) 228-9900\n"
-                "💬 Check for live chat support\n\n"
-                "This ensures you get accurate, current info."
+                "I don’t have enough specific information to answer this website question confidently. "
+                "Instead, please:\n\n"
+                "📍 Visit plasticsurgery.org\n"
+                "📞 Call ASPS at (847) 228-9900\n"
+                "🔍 Use their website search for accurate details."
             )
         else:
             return (
-                "I cannot provide confident medical information for this clinical question, prioritizing your safety. "
-                "Please consult:\n\n"
-                "🩺 Board-certified plastic surgeon\n"
-                "📚 Peer-reviewed medical literature\n"
-                "🏥 Your healthcare provider\n"
-                "📞 ASPS surgeon referral at (847) 228-9900\n"
-                "🌐 ASPS patient education at plasticsurgery.org\n\n"
-                "Professional consultation is always best."
+                "I can’t confidently answer this clinical question with the context provided. "
+                "To protect your health, I suggest:\n\n"
+                "🩺 Consulting a board-certified plastic surgeon\n"
+                "📚 Reviewing trusted medical literature\n"
+                "📞 Calling ASPS at (847) 228-9900 for referrals\n"
+                "🌐 Visiting plasticsurgery.org/patient-resources"
             )
 
     return answer
+
 # ============================
 # 12. EVALUATION FUNCTION — FIXED WITH TIMING, THRESHOLD, AND SUMMARY
 # ============================
@@ -1235,6 +1097,7 @@ def parallel_pdf_processing(pdf_files, max_workers=4):
                 print(f"❌ Error processing {pdf}: {e}")
 
     return all_chunks
+
 # ============================
 # 🔍 RUNPOD DEPLOYMENT VERIFICATION — LOCAL FILE CHECK FOR PRIVATE REPO
 # ============================
@@ -1349,6 +1212,7 @@ def verify_clinical_training_setup():
 if __name__ == "__main__":
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     verify_clinical_training_setup()
+
 # ============================
 # 16. MAIN FUNCTION - SIMPLIFIED
 # ============================
@@ -1520,11 +1384,7 @@ def extract_text_from_image(image_path):
         import logging
         logging.error(f"❌ OCR extraction failed for {image_path}: {e}")
         return ""
-import os
-import json
-import traceback
-import numpy as np
-import faiss
+
 # ============================
 # 🩺 CLINICAL DATA LOADING FROM LOCAL REPO FOLDERS
 # ============================
@@ -1722,8 +1582,7 @@ def load_github_knowledge_bases():
         print(f"❌ Error loading knowledge bases: {e}")
         traceback.print_exc()
         return False
-
-# ==========# ============================
+# ============================
 # 🌐 FASTAPI DEMO ENDPOINTS
 # ============================
 
@@ -1790,16 +1649,15 @@ async def health_check():
         "cuda_available": torch.cuda.is_available(),
         "device": str(torch.device("cuda" if torch.cuda.is_available() else "cpu")),
         "gpu_name": torch.cuda.get_device_name(0) if torch.cuda.is_available() else "None",
-        "clinical_loaded": FAISS_INDEXES.get("clinical") is not None,
-        "navigation_loaded": FAISS_INDEXES.get("navigation") is not None
+        "org_loaded": "asps" in ORG_FAISS_INDEXES  # Make sure ORG_FAISS_INDEXES is defined globally
     }
 
 # Main query endpoint
 @app.post("/query", response_model=QueryResponse)
 async def query_asps_rag(request: QueryRequest):
     try:
-        if not (FAISS_INDEXES.get("clinical") or FAISS_INDEXES.get("navigation")):
-            raise HTTPException(status_code=503, detail="Knowledge bases not loaded. Please wait for initialization.")
+        if "asps" not in ORG_FAISS_INDEXES:
+            raise HTTPException(status_code=503, detail="ASPS data not loaded. Please wait for initialization.")
 
         intent = classify_question_intent(request.question)
         print(f"🎯 Question: '{request.question[:50]}...' -> Intent: {intent}")
@@ -1878,10 +1736,10 @@ if __name__ == "__main__":
     print("   • Mistral-7B powered medical responses\n")
     print("📊 Data Sources:")
     print("   📚 Clinical: Training materials (PDFs/DOCX in clinical training directories)")
-    print("   🧭 Navigation: ASPS website content (nav1.json, nav2.json)\n")
+    print("   🧭 Navigation: ASPS website content (nav1.json, nav2.json, navigation_training_data.json)\n")
     print("🔧 Key Components:")
     print("   🎯 classify_question_intent() - Routes questions")
-    print("   📚 load_github_knowledge_bases() - Dual FAISS setup")
+    print("   📚 build_clinical_navigation_indexes() - Dual FAISS setup")
     print("   🔍 retrieve_context() - Intent-based retrieval")
     print("   🤖 generate_rag_answer_with_context() - Response generation\n")
     print("💡 Example Questions:")
@@ -1960,146 +1818,3 @@ DEPLOYMENT:
 Ready for RunPod deployment with automatic initialization.
 All dependencies in requirements.txt.
 """
-
-if __name__ == "__main__":
-    print("🏥 ASPS MEDICAL AI CHATBOT - CLINICAL/NAVIGATION DUAL SYSTEM")
-    print("=" * 70)
-    print("🎯 System Overview:")
-    print("   • CLINICAL questions → Training materials FAISS index")
-    print("   • NAVIGATION questions → Website knowledge FAISS index")  
-    print("   • Automatic intent detection and routing")
-    print("   • Mistral-7B powered medical responses")
-    print("")
-    print("📊 Data Sources:")
-    print("   📚 Clinical: Training materials (PDFs/DOCX in clinical training directories)")
-    print("   🧭 Navigation: ASPS website content (nav1.json, nav2.json, navigation_training_data.json)")
-    print("")
-    print("🔧 Key Components:")
-    print("   🎯 classify_question_intent() - Routes questions")
-    print("   📚 load_github_knowledge_bases() - Simple dual FAISS setup")
-    print("   🔍 retrieve_context() - Intent-based retrieval")
-    print("   🤖 generate_rag_answer_with_context() - Response generation")
-    print("")
-    print("💡 Example Questions:")
-    print("   Clinical: 'What are the key operative techniques for breast reconstruction?'")
-    print("   Navigation: 'How do I use the Find a Surgeon tool on plasticsurgery.org?'")
-    print("")
-    
-    # Initialize ASPS system
-    initialize_asps_system()
-    
-    # Start FastAPI server
-    print("\n🌐 Starting ASPS Demo API server...")
-    print("📍 Server will be available at: http://213.173.110.81:19524")
-    print("📖 API docs at: http://213.173.110.81:19524/docs")
-    print("🏥 Health check at: http://213.173.110.81:19524/health")
-    print("🔗 RunPod External Access: Connect via TCP port 213.173.110.81:19524")
-    print("\n✅ SYSTEM READY FOR CLINICAL/NAVIGATION DIFFERENTIATION!")
-    uvicorn.run(app, host="0.0.0.0", port=19524)
-
-    """
-🏥 ASPS MEDICAL AI CHATBOT - DUAL KNOWLEDGE SYSTEM
-
-PURPOSE:
-This system creates a medical AI chatbot that intelligently differentiates between:
-- CLINICAL questions (medical procedures, risks, techniques) 
-- NAVIGATION questions (finding surgeons, costs, appointments)
-
-ARCHITECTURE:
-1. Intent Classification:
-   - classify_question_intent() analyzes user questions
-   - Returns "clinical" or "navigation" based on keywords/context
-   
-2. Dual FAISS Indexes:
-   - Clinical Index: Built from training materials (PDFs, DOCX)
-   - Navigation Index: Built from ASPS website knowledge data
-   
-3. Context Retrieval:
-   - retrieve_context() searches appropriate index based on intent
-   - Returns relevant chunks for answer generation
-   
-4. Response Generation:
-   - generate_rag_answer_with_context() uses Mistral-7B
-   - Provides structured medical answers with proper context
-
-DATA FLOW:
-User Question → Intent Classification → Index Selection → Context Retrieval → Answer Generation
-
-KNOWLEDGE BASE ORGANIZATION:
-📚 CLINICAL INDEX (Medical Training Content):
-   - Training Data Op/ (operative procedures from PDFs/DOCX)
-   - Training Data Textbooks/ (medical textbooks)  
-   - Validate/ (validation datasets)
-   - op notes/ (operative notes)
-   - textbook notes/ (textbook summaries)
-   - clinical/ (general clinical materials)
-
-🧭 NAVIGATION INDEX (Website Content):
-   - nav1.json (ASPS website content part 1)
-   - nav2.json (ASPS website content part 2)
-   - navigation_training_data.json (original navigation data)
-   - ultimate_asps_knowledge_base.json (comprehensive website backup)
-
-SETUP REQUIREMENTS:
-1. Add clinical training materials to: org_data/asps/clinical_training/
-2. Run with JSON knowledge bases for navigation content
-3. Execute: python demo_asps.py
-4. Access web interface at: http://localhost:19524
-
-FILES CREATED:
-- Clinical FAISS index from training materials  
-- Navigation FAISS index from website knowledge
-- Dual chunk storage with intent separation
-- Web API with automatic routing
-
-TESTING:
-- Clinical: "What is rhinoplasty recovery like?"
-- Navigation: "How much does a nose job cost?"
-- System automatically routes to correct knowledge base
-
-DEPLOYMENT:
-Ready for RunPod deployment with automatic initialization.
-All dependencies in requirements.txt.
-"""
-
-import uvicorn
-
-def main():
-    print("🏥 ASPS MEDICAL AI CHATBOT - CLINICAL/NAVIGATION DUAL SYSTEM")
-    print("=" * 70)
-    
-    print("🎯 System Overview:")
-    print("   • CLINICAL questions → Training materials FAISS index")
-    print("   • NAVIGATION questions → Website knowledge FAISS index")  
-    print("   • Automatic intent detection and routing")
-    print("   • Mistral-7B powered medical responses")
-    print("")
-    print("📊 Data Sources:")
-    print("   📚 Clinical: Local GitHub repository folders")
-    print("   🧭 Navigation: ASPS website content (nav1.json, nav2.json)")
-    print("")
-    print("🔧 Key Components:")
-    print("   🎯 classify_question_intent() - Routes questions")
-    print("   📚 load_github_knowledge_bases() - Simple dual FAISS setup")
-    print("   🔍 retrieve_context() - Intent-based retrieval")
-    print("   🤖 generate_rag_answer_with_context() - Response generation")
-    print("")
-    print("💡 Example Questions:")
-    print("   Clinical: 'What are the key operative techniques for breast reconstruction?'")
-    print("   Navigation: 'How do I use the Find a Surgeon tool on plasticsurgery.org?'")
-    print("")
-    
-    # Initialize ASPS system
-    initialize_asps_system()
-    
-    # Start FastAPI server
-    print("\n🌐 Starting ASPS Demo API server...")
-    print("📍 Server will be available at: http://213.173.110.81:19524")
-    print("📖 API docs at: http://213.173.110.81:19524/docs")
-    print("🏥 Health check at: http://213.173.110.81:19524/health")
-    print("🔗 RunPod External Access: Connect via TCP port 213.173.110.81:19524")
-    print("\n✅ SYSTEM READY FOR CLINICAL/NAVIGATION DIFFERENTIATION!")
-    uvicorn.run(app, host="0.0.0.0", port=19524)
-
-if __name__ == "__main__":
-    main()
