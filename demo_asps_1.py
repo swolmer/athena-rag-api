@@ -35,12 +35,8 @@ from torch.utils.data import Dataset
 from dotenv import load_dotenv
 load_dotenv()  # ✅ Load environment variables from .env file
 
-# --- Environment variables setup ---
-from dotenv import load_dotenv
-load_dotenv()  # Load .env variables if present
-
-# ✅ RunPod Token Configuration - hardcoded for deployment
-HF_TOKEN = "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"
+# ✅ Get tokens from environment (set by run_all.py launcher)
+HF_TOKEN = os.getenv("HF_TOKEN", "")
 RAG_API_KEY = os.getenv("RAG_API_KEY", "default_key")
 
 if not RAG_API_KEY or RAG_API_KEY == "default_key":
@@ -161,14 +157,14 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
 LLM_MODEL_NAME = "NousResearch/Hermes-2-Pro-Mistral-7B"
 
-# Optional Hugging Face authentication for private repo access or increased rate limits
+# Hugging Face authentication (token validation handled by run_all.py)
 if HF_TOKEN:
     try:
         from huggingface_hub import login
         login(token=HF_TOKEN)
-        print("✅ Successfully logged into Hugging Face Hub.")
+        print("✅ Logged into Hugging Face Hub.")
     except Exception as e:
-        print(f"❌ Hugging Face login failed: {e}")
+        print(f"❌ HF login failed: {e}")
 
 # Configure logging to INFO level for visibility
 logging.basicConfig(level=logging.INFO)

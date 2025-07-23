@@ -233,14 +233,20 @@ class SystemManager:
     
     def setup_environment(self) -> bool:
         """Setup environment variables"""
-        print_section("ENVIRONMENT CONFIGURATION")
+        print_section("ENVIRONMENT SETUP")
         
-        # Default environment variables for RunPod
+        # Get HF_TOKEN from environment or use empty string if not set
+        hf_token = os.environ.get("HF_TOKEN", "")
+        if not hf_token:
+            print_status("HF_TOKEN not found in environment - some features may be limited", "warning")
+        else:
+            print_status("HF_TOKEN found in environment", "success")
+        
         env_vars = {
             "GITHUB_TOKEN": "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",
             "GITHUB_REPO_URL": "https://github.com/swolmer/athena-rag-api.git",
             "GITHUB_BRANCH": "asps_demo",
-            "HF_TOKEN": "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",
+            "HF_TOKEN": hf_token,
             "RAG_API_KEY": "your-rag-api-key-here",
             "PYTHONPATH": str(self.base_dir),
             "TOKENIZERS_PARALLELISM": "false",
@@ -262,7 +268,10 @@ class SystemManager:
             
             print_status(f"Environment file created: {self.env_file}", "success")
             print_status("GitHub integration: ENABLED", "success")
-            print_status("HuggingFace token: CONFIGURED", "success")
+            if hf_token:
+                print_status("HuggingFace token: CONFIGURED from environment", "success")
+            else:
+                print_status("HuggingFace token: NOT CONFIGURED (optional)", "warning")
             
             return True
         except Exception as e:
