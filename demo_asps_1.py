@@ -35,19 +35,11 @@ from torch.utils.data import Dataset
 from dotenv import load_dotenv
 load_dotenv()  # ✅ Load environment variables from .env file
 
-# --- Environment variables setup ---
-from dotenv import load_dotenv
-load_dotenv()  # Load .env variables if present
+HF_TOKEN = os.getenv("HF_TOKEN")
+RAG_API_KEY = os.getenv("RAG_API_KEY")
 
-# ✅ RunPod Token Configuration - hardcoded for deployment
-HF_TOKEN = "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"
-RAG_API_KEY = os.getenv("RAG_API_KEY", "default_key")
-
-if not RAG_API_KEY or RAG_API_KEY == "default_key":
-    print("⚠️ Using default RAG_API_KEY")
-
-# --- Hugging Face cache path configuration for RunPod ---
-os.environ["HF_HOME"] = "/workspace/huggingface_cache"
+if not RAG_API_KEY:
+    print("⚠️ RAG_API_KEY is not set. Check your .env file.")
 
 # --- Natural Language Processing ---
 import nltk
@@ -138,7 +130,6 @@ def get_org_paths(org_id):
     return {
         "base": base,
         "clinical_training": os.path.join(base, "clinical_training"),
-        "clinical_training_dir": os.path.join(base, "clinical_training"),
         "navigation_data": os.path.join(base, "extracted_content"),
         "html_pages": os.path.join(base, "html_pages"),
         "chunks_pkl": os.path.join(base, "chunks.pkl"),
@@ -146,81 +137,39 @@ def get_org_paths(org_id):
         "faiss_index": os.path.join(base, "index.faiss"),
         "training_data_dir": os.path.join(base, "training_data")
     }
-tokenizer = None
-rag_model = None
-embed_model = None
 
 # ============================
 # 🛠️ 3. CONFIGURATION — COLLAB READY
 # ============================
 
-# Base directory of this script, used for relative paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Shared model identifiers for embedding and language models
+# ✅ Parent folder for all org-specific data
+ORG_DATA_ROOT = os.path.join(BASE_DIR, "org_data")  # e.g., ./org_data/emory/
+
+# ✅ Shared model identifiers
 EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
 LLM_MODEL_NAME = "NousResearch/Hermes-2-Pro-Mistral-7B"
 
-# Optional Hugging Face authentication for private repo access or increased rate limits
+# ✅ Optional Hugging Face login
 if HF_TOKEN:
-    try:
-        from huggingface_hub import login
-        login(token=HF_TOKEN)
-        print("✅ Successfully logged into Hugging Face Hub.")
-    except Exception as e:
-        print(f"❌ Hugging Face login failed: {e}")
+    from huggingface_hub import login
+    login(token=HF_TOKEN)
 
-# Configure logging to INFO level for visibility
+# ✅ Logging
 logging.basicConfig(level=logging.INFO)
 
-# Determine the device for PyTorch computations (CUDA if available)
+# ✅ CUDA Device Info
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-# Print CUDA device info for debugging & confirmation
 print("🧠 Checking CUDA support:")
-print(f"CUDA Available: {torch.cuda.is_available()}")
+print("CUDA Available:", torch.cuda.is_available())
 if torch.cuda.is_available():
-    print(f"CUDA Device Name: {torch.cuda.get_device_name(0)}")
+    print("CUDA Device Name:", torch.cuda.get_device_name(0))
 else:
     print("⚠️ CUDA not available — using CPU")
 
 # ============================
-# 📁 4. ORG PATH HELPER
-# ============================
-
-def get_org_paths(org_id):
-    """
-    Returns all relevant file paths for a given organization.
-    This isolates all indexes, embeddings, and model files by org_id.
-    Now supports clinical vs navigation separation.
-    Updated for RunPod deployment with correct clinical training paths.
-    """
-    base = os.path.join(ORG_DATA_ROOT, org_id)
-    
-    # For RunPod: Clinical materials are in root-level 'clinical' folder
-    clinical_dir = os.path.join(BASE_DIR, "clinical")  # Root-level clinical folder
-    
-    return {
-        "base": base,
-        "clinical_training_dir": clinical_dir,  # Updated path for RunPod
-        "navigation_training_dir": os.path.join(base, "navigation_training"),
-        "clinical_faiss_index": os.path.join(base, "clinical_faiss_index.idx"),
-        "navigation_faiss_index": os.path.join(base, "navigation_faiss_index.idx"),
-        "clinical_chunks_pkl": os.path.join(base, "clinical_rag_chunks.pkl"),
-        "navigation_chunks_pkl": os.path.join(base, "navigation_rag_chunks.pkl"),
-        "clinical_embeddings_npy": os.path.join(base, "clinical_rag_embeddings.npy"),
-        "navigation_embeddings_npy": os.path.join(base, "navigation_rag_embeddings.npy"),
-        # Legacy paths for backward compatibility
-        "training_data_dir": os.path.join(base, "training"),
-        "faiss_index": os.path.join(base, "faiss_index.idx"),
-        "chunks_pkl": os.path.join(base, "rag_chunks.pkl"),
-        "embeddings_npy": os.path.join(base, "rag_embeddings.npy"),
-        "model_dir": os.path.join(base, "model"),
-        "csv_path": os.path.join(base, "Training_QA_Pairs.csv")  # optional
-    }
-
-# ============================
-# 5. GLOBAL TOKENIZER & MODEL
+# 4. GLOBAL TOKENIZER & MODEL
 # ============================
 
 from transformers import AutoTokenizer, AutoModelForCausalLM
