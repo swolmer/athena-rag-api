@@ -49,7 +49,7 @@ def main():
     
     # Run the main system - everything else is handled in demo_asps.py
     print("\n" + "=" * 60)
-    print("🚀 Starting demo_asps_1.py (handles all setup automatically)...")
+    print("🚀 Starting demo_asps.py (handles all setup automatically)...")
     print("=" * 60)
     
     try:
