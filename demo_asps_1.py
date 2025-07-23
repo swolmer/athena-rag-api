@@ -39,11 +39,12 @@ load_dotenv()  # ✅ Load environment variables from .env file
 from dotenv import load_dotenv
 load_dotenv()  # Load .env variables if present
 
-HF_TOKEN = os.getenv("HF_TOKEN")
-RAG_API_KEY = os.getenv("RAG_API_KEY")
+# ✅ RunPod Token Configuration - hardcoded for deployment
+HF_TOKEN = "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"
+RAG_API_KEY = os.getenv("RAG_API_KEY", "default_key")
 
-if not RAG_API_KEY:
-    print("⚠️ WARNING: RAG_API_KEY is not set. Please check your .env file.")
+if not RAG_API_KEY or RAG_API_KEY == "default_key":
+    print("⚠️ Using default RAG_API_KEY")
 
 # --- Hugging Face cache path configuration for RunPod ---
 os.environ["HF_HOME"] = "/workspace/huggingface_cache"
