@@ -893,6 +893,7 @@ def generate_rag_answer_with_context(user_question, context_chunks, mistral_toke
         answer = decoded.split("### ANSWER:")[-1].strip()
     else:
         answer = decoded.strip()
+    
     # Clean up repeated characters and invalid sequences
     import re
     
@@ -916,8 +917,102 @@ def generate_rag_answer_with_context(user_question, context_chunks, mistral_toke
     if not answer.endswith(('.', '!', '?')):
         answer += "."
 
+    # ============================
+    # ✨ ENHANCED FORMATTING FOR PRETTIER FRONTEND DISPLAY
+    # ============================
+    
+    def format_answer_for_frontend(text, question_intent):
+        """
+        Formats the answer with better structure and visual appeal for frontend display.
+        """
+        # Clean up the text first
+        text = text.strip()
+        
+        # Split into sentences for better formatting
+        sentences = re.split(r'(?<=[.!?])\s+', text)
+        
+        if len(sentences) < 2:
+            return text  # Return as-is if too short
+        
+        # Create structured response based on intent
+        if question_intent == "navigation":
+            # Navigation responses: More action-oriented formatting
+            formatted_response = ""
+            
+            # Add a brief intro if the response is long enough
+            if len(sentences) >= 3:
+                formatted_response += f"Quick Answer: {sentences[0]}\n\n"
+                
+                # Group remaining sentences into practical steps
+                if len(sentences) > 3:
+                    formatted_response += "Here's how to do it:\n\n"
+                    for i, sentence in enumerate(sentences[1:4], 1):
+                        if sentence.strip():
+                            formatted_response += f"• {sentence.strip()}\n"
+                    
+                    # Add any remaining info as additional details
+                    if len(sentences) > 4:
+                        formatted_response += f"\nAdditional Information:\n{' '.join(sentences[4:]).strip()}"
+                else:
+                    formatted_response += f"Details: {' '.join(sentences[1:]).strip()}"
+            else:
+                formatted_response = text
+                
+        else:
+            # Clinical responses: More educational/professional formatting
+            formatted_response = ""
+            
+            # Add overview for longer responses
+            if len(sentences) >= 4:
+                formatted_response += f"Overview: {sentences[0]}\n\n"
+                
+                # Split content into logical sections
+                mid_point = len(sentences) // 2
+                
+                if len(sentences) >= 6:
+                    formatted_response += f"Key Information:\n{' '.join(sentences[1:mid_point]).strip()}\n\n"
+                    formatted_response += f"Important Considerations:\n{' '.join(sentences[mid_point:]).strip()}"
+                else:
+                    formatted_response += f"Details:\n{' '.join(sentences[1:]).strip()}"
+            else:
+                formatted_response = text
+        
+        # Final cleanup and ensure proper spacing
+        formatted_response = re.sub(r'\n{3,}', '\n\n', formatted_response)  # Max 2 line breaks
+        formatted_response = re.sub(r' {2,}', ' ', formatted_response)       # Single spaces only
+        
+        return formatted_response.strip()
+    
+    # Apply the enhanced formatting
+    answer = format_answer_for_frontend(answer, intent)
+
     # Hallucination filter: check token overlap with context
     answer_tokens = set(re.findall(r"\b\w+\b", answer.lower()))
+    context_tokens = set(re.findall(r"\b\w+\b", context.lower()))
+    overlap = answer_tokens & context_tokens
+    overlap_score = len(overlap) / max(1, len(answer_tokens))
+
+    if overlap_score < 0.35:
+        logging.warning("⚠️ Low token overlap — likely hallucination.")
+        if intent == "navigation":
+            return ("I don't have enough reliable information for this specific navigation question.\n\n"
+                   "Here's what I recommend instead:\n\n"
+                   "• Visit plasticsurgery.org directly - Get the most up-to-date features\n"
+                   "• Use their site search - Search for specific topics you need\n"
+                   "• Contact ASPS support - Call (847) 228-9900 for personalized assistance\n"
+                   "• Try live chat - Check if they offer real-time support\n\n"
+                   "Why this approach: This ensures you get accurate, current information about their website resources and tools.")
+        else:
+            return ("I prioritize your safety by not providing potentially inaccurate medical information.\n\n"
+                   "For reliable clinical guidance, I strongly recommend:\n\n"
+                   "• Board-certified plastic surgeon consultation - Get personalized, professional medical advice\n"
+                   "• Peer-reviewed medical literature - Research current, evidence-based studies\n"
+                   "• Your healthcare provider - They understand your medical history\n"
+                   "• ASPS surgeon referral - Call (847) 228-9900 to find specialists in your area\n"
+                   "• ASPS patient education - Visit plasticsurgery.org for verified information\n\n"
+                   "Your safety first: Professional medical consultation is always the most reliable path for clinical questions.")
+
+    return answer
     context_tokens = set(re.findall(r"\b\w+\b", context.lower()))
     overlap = answer_tokens & context_tokens
     overlap_score = len(overlap) / max(1, len(answer_tokens))
@@ -1557,11 +1652,228 @@ def extract_text_from_image(image_path):
 # 📦 COMPLETE KNOWLEDGE BASE LOADER
 # ============================
 
+def setup_local_knowledge_bases(org_id="asps"):
+    """
+    Setup knowledge bases from local git clone files.
+    Checks for nav1.json, nav2.json, and navigation_training_data.json
+    in the current directory and copies them to the expected location.
+    """
+    print("📥 GIT CLONE MODE - Using local repository files...")
+    
+    # Check for local JSON files first (from git clone)
+    local_json_files = ["nav1.json", "nav2.json", "navigation_training_data.json"]
+    found_files = []
+    
+    print("🔍 Checking for local JSON files from git clone...")
+    for filename in local_json_files:
+        if os.path.exists(filename):
+            file_size = os.path.getsize(filename) / (1024 * 1024)  # MB
+            found_files.append(filename)
+            print(f"   ✅ Found: {filename} ({file_size:.1f} MB)")
+        else:
+            print(f"   ⚠️ Missing: {filename}")
+    
+    if len(found_files) >= 2:  # Need at least nav1 and nav2
+        print(f"\n✅ Found {len(found_files)} JSON files locally!")
+        
+        # Copy files to expected location
+        paths = get_org_paths(org_id)
+        os.makedirs(paths["base"], exist_ok=True)
+        
+        for filename in found_files:
+            source_path = filename
+            target_path = os.path.join(paths["base"], filename)
+            
+            if not os.path.exists(target_path):
+                import shutil
+                shutil.copy2(source_path, target_path)
+                print(f"   📋 Copied {filename} to org_data/asps/")
+            else:
+                print(f"   ✅ {filename} already in org_data/asps/")
+        
+        return True
+    else:
+        print(f"⚠️ Only found {len(found_files)} JSON files locally.")
+        return False
+
+def load_github_knowledge_bases_into_memory(org_id="asps"):
+    """
+    Load the GitHub-downloaded knowledge bases into memory for FAISS indexing.
+    This replaces the content extraction and builds indexes from pre-extracted data.
+    """
+    print(f"🧠 Loading GitHub knowledge bases into memory for '{org_id}'...")
+    
+    paths = get_org_paths(org_id)
+    
+    try:
+        clinical_chunks = []
+        navigation_chunks = []
+        
+        # Try to load different knowledge base files (from repo root)
+        kb_files = [
+            ("navigation_training_data.json", "navigation"),      # Original navigation training data
+            ("nav1.json", "clinical"),                           # Clinical content split (formerly clinical_knowledge_base.json)
+            ("nav2.json", "navigation"),                         # Navigation content split (formerly navigation_knowledge_base.json) 
+            ("ultimate_asps_knowledge_base.json", "mixed")       # Full comprehensive file as fallback
+        ]
+        
+        for filename, content_type in kb_files:
+            file_path = os.path.join(paths["base"], filename)
+            
+            if os.path.exists(file_path):
+                print(f"   📄 Loading {filename}...")
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        data = json.load(f)
+                    
+                    # Process chunks based on file type
+                    for chunk in data:
+                        if isinstance(chunk, str):
+                            text = chunk
+                        elif isinstance(chunk, dict):
+                            text = chunk.get('text', chunk.get('content', ''))
+                        else:
+                            continue
+                        
+                        if not text or len(text) < 30:
+                            continue
+                        
+                        # Route to appropriate index
+                        if content_type == "navigation":
+                            navigation_chunks.append(text)
+                        elif content_type == "clinical":
+                            clinical_chunks.append(text)
+                        elif content_type == "mixed":
+                            # For mixed content, try to classify
+                            intent = classify_question_intent(text)
+                            if intent == "clinical":
+                                clinical_chunks.append(text)
+                            else:
+                                navigation_chunks.append(text)
+                    
+                    print(f"   ✅ Processed {len(data)} chunks from {filename}")
+                    
+                except Exception as file_error:
+                    print(f"   ⚠️ Error processing {filename}: {file_error}")
+            else:
+                print(f"   ⚠️ {filename} not found, skipping...")
+        
+        # ============================
+        # 📚 STEP 2: LOAD CLINICAL TRAINING DIRECTORIES (NEW!)
+        # ============================
+        print("📚 Loading clinical training directories for CLINICAL FAISS...")
+        
+        # Define all clinical training directories that should be loaded
+        clinical_training_dirs = [
+            "Training Data Op",
+            "Training Data Textbooks", 
+            "Validate",
+            "op notes",
+            "textbook notes",
+            "clinical"
+        ]
+        
+        # Look for clinical directories in base path (after GitHub clone)
+        for dir_name in clinical_training_dirs:
+            # First try in org_data/asps/ (copied location)
+            potential_dir = os.path.join(paths["base"], dir_name)
+            
+            # If not found there, try in the repository root (current working directory)
+            if not os.path.exists(potential_dir):
+                potential_dir = os.path.join(os.getcwd(), dir_name)
+            
+            if os.path.exists(potential_dir):
+                print(f"✅ Found clinical directory: {dir_name}")
+                
+                # Process all PDF and DOCX files in this directory
+                for root, _, files in os.walk(potential_dir):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        
+                        if file.endswith(".pdf"):
+                            print(f"   📄 Processing clinical PDF: {file}")
+                            raw_text = extract_text_from_pdf(file_path)
+                            if raw_text:
+                                chunks = chunk_text_by_words(raw_text)
+                                valid_chunks = [c for c in chunks if is_valid_chunk(c)]
+                                clinical_chunks.extend(valid_chunks)
+                                print(f"      Added {len(valid_chunks)} chunks from {file}")
+                        
+                        elif file.endswith(".docx"):
+                            print(f"   📝 Processing clinical DOCX: {file}")
+                            raw_text = extract_text_from_docx(file_path)
+                            if raw_text:
+                                chunks = chunk_text_by_words(raw_text)
+                                valid_chunks = [c for c in chunks if is_valid_chunk(c)]
+                                clinical_chunks.extend(valid_chunks)
+                                print(f"      Added {len(valid_chunks)} chunks from {file}")
+            else:
+                print(f"⚠️ Clinical directory not found: {dir_name} (checked both org_data/asps/ and repository root)")
+        
+        # Remove duplicates while preserving order
+        clinical_chunks = list(dict.fromkeys(clinical_chunks))
+        navigation_chunks = list(dict.fromkeys(navigation_chunks))
+        
+        print(f"📊 Final processed knowledge base:")
+        print(f"   📚 Clinical chunks: {len(clinical_chunks)} (JSON + directories)")
+        print(f"   🧭 Navigation chunks: {len(navigation_chunks)} (JSON only)")
+        
+        # Build FAISS indexes
+        print(f"🔢 Building FAISS indexes...")
+        
+        # Clinical index
+        if clinical_chunks:
+            print("   🧠 Building clinical index...")
+            clinical_embeddings = embed_model.encode(clinical_chunks, show_progress_bar=True)
+            clinical_index = faiss.IndexFlatL2(clinical_embeddings.shape[1])
+            clinical_index.add(np.array(clinical_embeddings))
+        else:
+            print("⚠️ No clinical chunks found - creating minimal index")
+            clinical_chunks = ["Clinical information will be available soon."]
+            clinical_embeddings = embed_model.encode(clinical_chunks)
+            clinical_index = faiss.IndexFlatL2(clinical_embeddings.shape[1])
+            clinical_index.add(np.array(clinical_embeddings))
+        
+        # Navigation index
+        if navigation_chunks:
+            print("   🧭 Building navigation index...")
+            navigation_embeddings = embed_model.encode(navigation_chunks, show_progress_bar=True)
+            navigation_index = faiss.IndexFlatL2(navigation_embeddings.shape[1])
+            navigation_index.add(np.array(navigation_embeddings))
+        else:
+            print("⚠️ No navigation chunks found - creating minimal index")
+            navigation_chunks = ["Navigation information will be available soon."]
+            navigation_embeddings = embed_model.encode(navigation_chunks)
+            navigation_index = faiss.IndexFlatL2(navigation_embeddings.shape[1])
+            navigation_index.add(np.array(navigation_embeddings))
+        
+        # Store in global memory (dual index format)
+        ORG_FAISS_INDEXES[org_id] = {
+            "clinical": clinical_index,
+            "navigation": navigation_index
+        }
+        ORG_CHUNKS[org_id] = {
+            "clinical": clinical_chunks,
+            "navigation": navigation_chunks
+        }
+        ORG_EMBEDDINGS[org_id] = {
+            "clinical": clinical_embeddings,
+            "navigation": navigation_embeddings
+        }
+        
+        print(f"✅ Successfully loaded GitHub knowledge bases into memory!")
+        print(f"🎯 Ready for clinical and navigation queries!")
+        
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error loading GitHub knowledge bases: {e}")
+        traceback.print_exc()
+        return False
+
 def load_github_knowledge_bases():
     """
-    Loads navigation JSON knowledge bases from local repo JSON files,
-    and loads clinical training data from local clinical directories.
-    Builds separate FAISS indexes for retrieval and stores globally.
+    Legacy function name - redirects to the new implementation
     """
     print("🧠 Loading GitHub knowledge bases into memory...")
 
