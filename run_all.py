@@ -237,10 +237,10 @@ class SystemManager:
         
         # Default environment variables for RunPod
         env_vars = {
-            "GITHUB_TOKEN": "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",
+            "GITHUB_TOKEN": "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",
             "GITHUB_REPO_URL": "https://github.com/swolmer/athena-rag-api.git",
             "GITHUB_BRANCH": "asps_demo",
-            "HF_TOKEN": "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",
+            "HF_TOKEN": "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",
             "RAG_API_KEY": "your-rag-api-key-here",
             "PYTHONPATH": str(self.base_dir),
             "TOKENIZERS_PARALLELISM": "false",
