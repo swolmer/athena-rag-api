@@ -35,8 +35,7 @@ from torch.utils.data import Dataset
 from dotenv import load_dotenv
 load_dotenv()  # ✅ Load environment variables from .env file
 
-# ✅ RunPod Token Configuration
-HF_TOKEN = "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"
+HF_TOKEN = os.getenv("HF_TOKEN")
 RAG_API_KEY = os.getenv("RAG_API_KEY")
 
 if not RAG_API_KEY:
