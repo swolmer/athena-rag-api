@@ -18,6 +18,8 @@ def main():
     print("=" * 60)
     print("🎯 Starting ASPS Medical AI System...")
     print("   📥 Git Clone Integration:        Using local nav1.json + nav2.json + navigation_training_data.json")
+    print("   📚 Clinical Index:               nav1.json (31,893 chunks) + clinical training directories")
+    print("   🧭 Navigation Index:             nav2.json (14,649 chunks) + navigation training data")
     print("   🤖 AI Model:                     Mistral-7B with dual FAISS indexes")
     print("   🌐 Web Interface:                Available on RunPod HTTP Service port")
     print("")
@@ -27,7 +29,10 @@ def main():
     print(f"🔧 Environment Setup:")
     print(f"   HF_HOME =                        {os.environ['HF_HOME']}")
     
-
+    # Quick check for local JSON files
+    json_files = ["nav1.json", "nav2.json", ""]
+    found_files = [f for f in json_files if os.path.exists(f)]
+    
     print(f"📊 Knowledge Base Status:")
     if found_files:
         print(f"   ✅ Found {len(found_files)} local JSON files:")
