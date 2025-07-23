@@ -806,12 +806,20 @@ def generate_rag_answer_with_context(user_question, context_chunks, mistral_toke
     # Clean up repeated characters and invalid sequences
     import re
     
+    # Remove the specific pattern of repeated numbers with spaces (like "1 3 2 3 3 3 4 3...")
+    answer = re.sub(r'\b(\d+\s+){4,}.*$', '', answer)    # Remove sequences of 4+ numbers with spaces at end
+    answer = re.sub(r'\s+(\d+\s+){3,}.*$', '', answer)   # Remove sequences of 3+ spaced numbers anywhere
+    
     # Remove excessive repeated characters (like "9 9 9 9 9...")
     answer = re.sub(r'\b(\d)\s+\1(\s+\1)+', '', answer)  # Remove repeated digits with spaces
     answer = re.sub(r'(\w)\1{3,}', r'\1', answer)        # Remove excessive character repetition
-    answer = re.sub(r'\s+', ' ', answer)                 # Normalize whitespace
     
-    # Remove common model artifacts
+    # Remove trailing number sequences and artifacts
+    answer = re.sub(r'\s+\d+(\s+\d+)*\s*$', '', answer) # Remove trailing number sequences
+    answer = re.sub(r'\s+[0-9\s]+$', '', answer)         # Remove any trailing numbers and spaces
+    
+    # Clean up whitespace and common artifacts
+    answer = re.sub(r'\s+', ' ', answer)                 # Normalize whitespace
     answer = re.sub(r'\b(the the|and and|of of|in in)\b', r'\1'.split()[0], answer)  # Remove repeated words
     answer = re.sub(r'[^\w\s\.,!?:;()-]', '', answer)    # Remove invalid characters
     
@@ -821,6 +829,16 @@ def generate_rag_answer_with_context(user_question, context_chunks, mistral_toke
         answer = " ".join(sentences[:12]).strip()
     else:
         answer = answer.strip()
+
+    # Final cleanup after sentence truncation - remove any remaining number artifacts
+    answer = re.sub(r'\s+\d+(\s+\d+)*\s*$', '', answer)  # Remove any trailing number sequences
+    answer = re.sub(r'\s+[0-9\s]+$', '', answer)          # Remove trailing numbers and spaces
+    
+    # Additional safety check for the specific pattern you encountered
+    answer = re.sub(r'\.\s*\d+(\s+\d+)+.*$', '.', answer)  # Remove anything after a period followed by number sequences
+    answer = re.sub(r'\s+\d+\s+\d+\s+\d+.*$', '', answer)  # Remove sequences of 3+ spaced numbers at end
+    
+    answer = answer.strip()                               # Clean up whitespace
 
     # Ensure answer ends with a period
     if not answer.endswith(('.', '!', '?')):
