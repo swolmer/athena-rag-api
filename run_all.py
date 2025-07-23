@@ -18,6 +18,7 @@ def main():
     print("=" * 60)
     print("🎯 Starting ASPS Medical AI System...")
     print("   📥 Git Clone Integration:        Using local nav1.json + nav2.json + navigation_training_data.json")
+
     print("   🤖 AI Model:                     Mistral-7B with dual FAISS indexes")
     print("   🌐 Web Interface:                Available on RunPod HTTP Service port")
     print("")
@@ -26,16 +27,6 @@ def main():
     os.environ["HF_HOME"] = "/workspace/huggingface_cache"
     print(f"🔧 Environment Setup:")
     print(f"   HF_HOME =                        {os.environ['HF_HOME']}")
-    
-
-    print(f"📊 Knowledge Base Status:")
-    if found_files:
-        print(f"   ✅ Found {len(found_files)} local JSON files:")
-        for file in found_files:
-            file_size = os.path.getsize(file) / (1024 * 1024) if os.path.exists(file) else 0
-            print(f"      - {file:<35} ({file_size:.1f} MB)")
-    else:
-        print("   ⚠️  No local JSON files found    - system will use fallback content")
     
     print(f"🚀 RunPod Deployment Info:")
     print(f"   📡 HTTP Service Port:            19524 (configured in RunPod)")
