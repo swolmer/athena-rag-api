@@ -40,7 +40,7 @@ from dotenv import load_dotenv
 load_dotenv()  # Load .env variables if present
 
 # ✅ RunPod Token Configuration - hardcoded for deployment
-HF_TOKEN = "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"
+HF_TOKEN = "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"
 RAG_API_KEY = os.getenv("RAG_API_KEY", "default_key")
 
 if not RAG_API_KEY or RAG_API_KEY == "default_key":
