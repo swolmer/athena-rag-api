@@ -274,7 +274,7 @@ class SystemManager:
         print_section("SYSTEM VALIDATION")
         
         required_files = [
-            "demo_asps_robust.py"
+            "demo_asps_1.py"
         ]
         
         missing_files = []
@@ -389,7 +389,7 @@ class RunPodLauncher:
             print_status("This may take a few minutes on first run...", "info")
             
             # Run the main system with UTF-8 encoding
-            with open("demo_asps_robust.py", "r", encoding="utf-8") as f:
+            with open("demo_asps_1.py", "r", encoding="utf-8") as f:
                 exec(f.read())
             
         except KeyboardInterrupt:
