@@ -160,7 +160,7 @@ LLM_MODEL_NAME = "NousResearch/Hermes-2-Pro-Mistral-7B"
 if HF_TOKEN:
     try:
         from huggingface_hub import login
-        login(token=HF_TOKEN)
+        login(token=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)
         print("✅ HuggingFace authentication successful")
     except Exception as hf_error:
         print(f"⚠️ HuggingFace login failed: {hf_error}")
