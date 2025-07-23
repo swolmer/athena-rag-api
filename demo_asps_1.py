@@ -35,12 +35,19 @@ from torch.utils.data import Dataset
 from dotenv import load_dotenv
 load_dotenv()  # ✅ Load environment variables from .env file
 
+# --- Environment variables setup ---
+from dotenv import load_dotenv
+load_dotenv()  # Load .env variables if present
+
 # ✅ RunPod Token Configuration - hardcoded for deployment
-HF_TOKEN = "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"
+HF_TOKEN = "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"
 RAG_API_KEY = os.getenv("RAG_API_KEY", "default_key")
 
 if not RAG_API_KEY or RAG_API_KEY == "default_key":
     print("⚠️ Using default RAG_API_KEY")
+
+# --- Hugging Face cache path configuration for RunPod ---
+os.environ["HF_HOME"] = "/workspace/huggingface_cache"
 
 # --- Natural Language Processing ---
 import nltk
@@ -147,34 +154,33 @@ embed_model = None
 # 🛠️ 3. CONFIGURATION — COLLAB READY
 # ============================
 
+# Base directory of this script, used for relative paths
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# ✅ Parent folder for all org-specific data
-ORG_DATA_ROOT = os.path.join(BASE_DIR, "org_data")  # e.g., ./org_data/emory/
-
-# ✅ Shared model identifiers
+# Shared model identifiers for embedding and language models
 EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
 LLM_MODEL_NAME = "NousResearch/Hermes-2-Pro-Mistral-7B"
 
-# ✅ Optional Hugging Face login with error handling
+# Optional Hugging Face authentication for private repo access or increased rate limits
 if HF_TOKEN:
     try:
         from huggingface_hub import login
-        login(token=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)
-        print("✅ HuggingFace authentication successful")
-    except Exception as hf_error:
-        print(f"⚠️ HuggingFace login failed: {hf_error}")
-        print("🔄 Continuing without HF authentication - public models only")
+        login(token=HF_TOKEN)
+        print("✅ Successfully logged into Hugging Face Hub.")
+    except Exception as e:
+        print(f"❌ Hugging Face login failed: {e}")
 
-# ✅ Logging
+# Configure logging to INFO level for visibility
 logging.basicConfig(level=logging.INFO)
 
-# ✅ CUDA Device Info
+# Determine the device for PyTorch computations (CUDA if available)
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# Print CUDA device info for debugging & confirmation
 print("🧠 Checking CUDA support:")
-print("CUDA Available:", torch.cuda.is_available())
+print(f"CUDA Available: {torch.cuda.is_available()}")
 if torch.cuda.is_available():
-    print("CUDA Device Name:", torch.cuda.get_device_name(0))
+    print(f"CUDA Device Name: {torch.cuda.get_device_name(0)}")
 else:
     print("⚠️ CUDA not available — using CPU")
 
