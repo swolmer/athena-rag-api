@@ -18,7 +18,8 @@ def main():
     print("=" * 60)
     print("🎯 Starting ASPS Medical AI System...")
     print("   📥 Git Clone Integration:        Using local nav1.json + nav2.json + navigation_training_data.json")
-
+    print("   📚 Clinical Index:               nav1.json (31,893 chunks) + clinical training directories")
+    print("   🧭 Navigation Index:             nav2.json (14,649 chunks) + navigation training data")
     print("   🤖 AI Model:                     Mistral-7B with dual FAISS indexes")
     print("   🌐 Web Interface:                Available on RunPod HTTP Service port")
     print("")
@@ -28,6 +29,19 @@ def main():
     print(f"🔧 Environment Setup:")
     print(f"   HF_HOME =                        {os.environ['HF_HOME']}")
     
+    # Quick check for local JSON files
+    json_files = ["nav1.json", "nav2.json", ""]
+    found_files = [f for f in json_files if os.path.exists(f)]
+    
+    print(f"📊 Knowledge Base Status:")
+    if found_files:
+        print(f"   ✅ Found {len(found_files)} local JSON files:")
+        for file in found_files:
+            file_size = os.path.getsize(file) / (1024 * 1024) if os.path.exists(file) else 0
+            print(f"      - {file:<35} ({file_size:.1f} MB)")
+    else:
+        print("   ⚠️  No local JSON files found    - system will use fallback content")
+    
     print(f"🚀 RunPod Deployment Info:")
     print(f"   📡 HTTP Service Port:            19524 (configured in RunPod)")
     print(f"   🔗 Access URL:                   Use RunPod's HTTP Service link")
@@ -35,7 +49,7 @@ def main():
     
     # Run the main system - everything else is handled in demo_asps.py
     print("\n" + "=" * 60)
-    print("🚀 Starting demo_asps_1.py (handles all setup automatically)...")
+    print("🚀 Starting demo_asps.py (handles all setup automatically)...")
     print("=" * 60)
     
     try:
