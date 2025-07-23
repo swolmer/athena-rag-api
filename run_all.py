@@ -388,8 +388,9 @@ class RunPodLauncher:
             print_status("Loading AI models and knowledge bases...", "processing")
             print_status("This may take a few minutes on first run...", "info")
             
-            # Run the main system
-            exec(open("demo_asps_robust.py").read())
+            # Run the main system with UTF-8 encoding
+            with open("demo_asps_robust.py", "r", encoding="utf-8") as f:
+                exec(f.read())
             
         except KeyboardInterrupt:
             print_status("\nSystem shutdown requested by user", "warning")

@@ -37,6 +37,26 @@ import shutil
 import requests
 import uvicorn
 import fitz
+import numpy
+import pandas as pd
+import os
+import sys
+import json
+import logging
+import pickle
+import re
+import traceback
+import concurrent.futures
+import torch
+import faiss
+import nltk
+import nltk.data
+import subprocess
+import tempfile
+import shutil
+import requests
+import uvicorn
+import fitz
 
 # ============================
 # 📦 CONSOLIDATED IMPORTS
@@ -179,8 +199,8 @@ class SystemStatus(Enum):
 class KnowledgeBase:
     """Represents a knowledge base with its components"""
     chunks: List[str]
-    embeddings: numpy.ndarray
-    faiss_index: faiss.Index
+    embeddings: Any  # numpy.ndarray
+    faiss_index: Any  # faiss.Index
     
     @property
     def size(self) -> int:
@@ -442,7 +462,7 @@ class ModelManager:
             logger.error(f"❌ Embedding model loading failed: {e}")
             raise
     
-    def encode_texts(self, texts: Union[str, List[str]], **kwargs) -> numpy.ndarray:
+    def encode_texts(self, texts: Union[str, List[str]], **kwargs) -> Any:
         """Safe text encoding with error handling"""
         if self.embedding_model is None:
             raise RuntimeError("Embedding model not initialized")
@@ -979,8 +999,8 @@ class KnowledgeBaseBuilder:
     def _save_knowledge_base(
         self, 
         chunks: List[str], 
-        embeddings: numpy.ndarray, 
-        faiss_index: faiss.Index, 
+        embeddings: Any, 
+        faiss_index: Any, 
         kb_type: str
     ) -> None:
         """Save knowledge base components to disk"""
