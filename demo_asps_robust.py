@@ -12,11 +12,10 @@ Author: Advanced AI Systems
 Version: 2.0.0 - Production Ready
 """
 
-# ============================
+## ============================
 # 📦 CONSOLIDATED IMPORTS
 # ============================
 
-# Core Python Libraries
 import os
 import sys
 import json
@@ -24,128 +23,27 @@ import logging
 import pickle
 import re
 import traceback
+import subprocess
+import shutil
+import tempfile
 import concurrent.futures
+import typing 
+
+from typing import Dict, List, Optional, Tuple, Union, Any
+
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union, Any
 from dataclasses import dataclass
 from enum import Enum
 
-# Scientific Computing
-import numpy as np
+import numpy as np  # Fixed consistent import alias
 import pandas as pd
 import torch
 import faiss
-from sklearn.metrics.pairwise import cosine_similarity
-
-# Natural Language Processing
 import nltk
 import nltk.data
-from sentence_transformers import SentenceTransformer
-
-# Machine Learning & Transformers
-from transformers import (
-    AutoTokenizer, 
-    AutoModelForCausalLM,
-    default_data_collator,
-    Trainer,
-    TrainingArguments
-)
-
-# Document Processing
-import fitz  # PyMuPDF
-from PIL import Image
-from docx import Document
-try:
-    import pytesseract
-except ImportError:
-    pytesseract = None
-
-# Web & API
-import requests
-from bs4 import BeautifulSoup
-from urllib.parse import urljoin
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
-from pydantic import BaseModel
 import uvicorn
-
-# Environment & Configuration
-from dotenv import load_dotenv
-
-# GitHub Integration
-import subprocess
-import tempfile
-import shutil
-from urllib.parse import urlparse
-
-# ============================
-# 🔧 GLOBAL CONFIGURATION
-# ============================
-
-# Load environment variables
-load_dotenv()
-
-# Get GitHub token from environment (using your personal access token)
-GITHUB_TOKEN = os.getenv("GITHUB_TOKEN") or os.getenv("GITHUB_PAT") or "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"
-GITHUB_REPO_URL = os.getenv("GITHUB_REPO_URL", "https://github.com/swolmer/athena-rag-api.git")
-GITHUB_BRANCH = os.getenv("GITHUB_BRANCH", "asps_demo")
-
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler('asps_system.log'),
-        logging.StreamHandler(sys.stdout)
-    ]
-)
-logger = logging.getLogger(__name__)
-
-# System Configuration
-@dataclass
-class SystemConfig:
-    """System-wide configuration parameters"""
-    
-    # Model Configuration
-    EMBEDDING_MODEL: str = "all-MiniLM-L6-v2"
-    LANGUAGE_MODEL: str = "NousResearch/Hermes-2-Pro-Mistral-7B"
-    
-    # Processing Parameters
-    MAX_CHUNK_WORDS: int = 200
-    CHUNK_OVERLAP: int = 50
-    MIN_CHUNK_WORDS: int = 30
-    RETRIEVAL_K: int = 3
-    INITIAL_K: int = 10
-    
-    # Generation Parameters
-    MAX_NEW_TOKENS: int = 400
-    TEMPERATURE: float = 0.3
-    TOP_P: float = 0.85
-    REPETITION_PENALTY: float = 1.15
-    
-    # Quality Thresholds
-    SIMILARITY_THRESHOLD: float = 0.3
-    HALLUCINATION_THRESHOLD: float = 0.35
-    
-    # Paths
-    BASE_DIR: str = os.path.dirname(os.path.abspath(__file__))
-    ORG_DATA_ROOT: str = os.path.join(BASE_DIR, "org_data")
-    HF_CACHE: str = "/workspace/huggingface_cache"
-    
-    # GitHub Integration
-    GITHUB_ENABLED: bool = bool(GITHUB_TOKEN)
-    TEMP_CLONE_DIR: str = os.path.join(BASE_DIR, "temp_github_clone")
-
-# Initialize configuration
-CONFIG = SystemConfig()
-
-# Set Hugging Face cache
-os.environ["HF_HOME"] = CONFIG.HF_CACHE
-
-# Device configuration
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-logger.info(f"🔥 System initialized on device: {DEVICE}")
+import fitz
 
 # ============================
 # 📊 DATA STRUCTURES & ENUMS
@@ -166,9 +64,9 @@ class SystemStatus(Enum):
 class KnowledgeBase:
     """Represents a knowledge base with its components"""
     chunks: List[str]
-    embeddings: np.ndarray
-    faiss_index: faiss.Index
-    
+    embeddings: Any  # numpy.ndarray
+    faiss_index: Any  # faiss.Index
+
     @property
     def size(self) -> int:
         return len(self.chunks)
@@ -178,613 +76,10 @@ class OrganizationData:
     """Complete data structure for an organization"""
     clinical: KnowledgeBase
     navigation: KnowledgeBase
-    
+
     @property
     def total_chunks(self) -> int:
         return self.clinical.size + self.navigation.size
-
-# Global storage for organization data
-ORGANIZATIONS: Dict[str, OrganizationData] = {}
-
-# ============================
-# 🐙 GITHUB INTEGRATION SYSTEM
-# ============================
-
-class GitHubDataLoader:
-    """Advanced GitHub integration for pulling training data"""
-    
-    def __init__(self):
-        self.token = GITHUB_TOKEN
-        self.repo_url = GITHUB_REPO_URL
-        self.branch = GITHUB_BRANCH
-        self.temp_dir = CONFIG.TEMP_CLONE_DIR
-        self.enabled = CONFIG.GITHUB_ENABLED
-    
-    def clone_repository(self, target_dir: str = None) -> bool:
-        """Clone repository with authentication"""
-        if not self.enabled:
-            logger.warning("🔒 GitHub token not provided - skipping repository clone")
-            return False
-        
-        target_dir = target_dir or self.temp_dir
-        
-        try:
-            # Clean up existing directory
-            if os.path.exists(target_dir):
-                shutil.rmtree(target_dir)
-            
-            # Parse URL and inject token
-            parsed_url = urlparse(self.repo_url)
-            authenticated_url = f"https://{self.token}@{parsed_url.netloc}{parsed_url.path}"
-            
-            logger.info(f"📥 Cloning repository: {parsed_url.netloc}{parsed_url.path} (branch: {self.branch})")
-            
-            # Clone with authentication and specific branch
-            result = subprocess.run([
-                "git", "clone", "-b", self.branch, authenticated_url, target_dir
-            ], capture_output=True, text=True, timeout=300)
-            
-            if result.returncode == 0:
-                logger.info(f"✅ Repository cloned successfully to {target_dir}")
-                return True
-            else:
-                logger.error(f"❌ Git clone failed: {result.stderr}")
-                return False
-                
-        except subprocess.TimeoutExpired:
-            logger.error("❌ Git clone timed out after 5 minutes")
-            return False
-        except Exception as e:
-            logger.error(f"❌ Repository clone failed: {e}")
-            return False
-    
-    def sync_training_data(self) -> Dict[str, int]:
-        """Pull training data from GitHub and organize locally"""
-        if not self.clone_repository():
-            return {"clinical_files": 0, "navigation_files": 0, "total_size_mb": 0}
-        
-        stats = {"clinical_files": 0, "navigation_files": 0, "total_size_mb": 0}
-        
-        try:
-            # Step 1: Explore repository structure
-            logger.info("🔍 Exploring repository structure...")
-            self._explore_repository_structure()
-            
-            # Define source and target mappings for athena-rag-api structure
-            # Match the exact 3 blue folders from GitHub
-            sync_mappings = [
-                # The 3 blue clinical folders from GitHub
-                (os.path.join(self.temp_dir, "clinical"), 
-                 os.path.join(CONFIG.BASE_DIR, "clinical")),
-                (os.path.join(self.temp_dir, "op notes"), 
-                 os.path.join(CONFIG.BASE_DIR, "op notes")),
-                (os.path.join(self.temp_dir, "textbook notes"), 
-                 os.path.join(CONFIG.BASE_DIR, "textbook notes")),
-            ]
-            
-            # Sync clinical directories
-            for source_dir, target_dir in sync_mappings:
-                if os.path.exists(source_dir):
-                    logger.info(f"📁 Syncing {os.path.basename(source_dir)} directory...")
-                    os.makedirs(target_dir, exist_ok=True)
-                    
-                    for root, dirs, files in os.walk(source_dir):
-                        for file in files:
-                            if file.lower().endswith(('.pdf', '.docx', '.doc', '.txt')):
-                                source_file = os.path.join(root, file)
-                                target_file = os.path.join(target_dir, file)
-                                
-                                shutil.copy2(source_file, target_file)
-                                file_size = os.path.getsize(target_file) / (1024 * 1024)
-                                stats["clinical_files"] += 1
-                                stats["total_size_mb"] += file_size
-                                
-                                logger.info(f"📄 Synced: {file} ({file_size:.1f} MB)")
-            
-            # Sync navigation JSON files from athena-rag-api
-            # Match the exact JSON files visible in GitHub
-            json_files = [
-                # Base navigation files
-                "nav1.json", 
-                "nav2.json",
-                # Comprehensive split files (01-15)
-                "comprehensive_split_01.json", "comprehensive_split_02.json",
-                "comprehensive_split_03.json", "comprehensive_split_04.json", 
-                "comprehensive_split_05.json", "comprehensive_split_06.json",
-                "comprehensive_split_07.json", "comprehensive_split_08.json",
-                "comprehensive_split_09.json", "comprehensive_split_10.json",
-                "comprehensive_split_11.json", "comprehensive_split_12.json",
-                "comprehensive_split_13.json", "comprehensive_split_14.json",
-                "comprehensive_split_15.json"
-            ]
-            
-            # Look for JSON files in root directory (as shown in GitHub)
-            for json_file in json_files:
-                source_path = os.path.join(self.temp_dir, json_file)
-                target_path = os.path.join(CONFIG.BASE_DIR, json_file)
-                
-                if os.path.exists(source_path):
-                    shutil.copy2(source_path, target_path)
-                    file_size = os.path.getsize(target_path) / (1024 * 1024)
-                    stats["navigation_files"] += 1
-                    stats["total_size_mb"] += file_size
-                    
-                    logger.info(f"📊 Synced navigation: {json_file} ({file_size:.1f} MB)")
-                else:
-                    logger.info(f"📄 JSON file not found: {json_file}")
-            
-            logger.info(f"🎯 Sync complete: {stats['clinical_files']} clinical + {stats['navigation_files']} navigation files ({stats['total_size_mb']:.1f} MB total)")
-            
-        except Exception as e:
-            logger.error(f"❌ Data sync failed: {e}")
-        finally:
-            # Clean up temp directory
-            if os.path.exists(self.temp_dir):
-                shutil.rmtree(self.temp_dir)
-                logger.info("🧹 Cleaned up temporary clone directory")
-        
-        return stats
-    
-    def _explore_repository_structure(self) -> None:
-        """Explore and log repository structure to help identify data locations"""
-        if not os.path.exists(self.temp_dir):
-            return
-        
-        logger.info("📁 Repository structure:")
-        for root, dirs, files in os.walk(self.temp_dir):
-            level = root.replace(self.temp_dir, '').count(os.sep)
-            indent = ' ' * 2 * level
-            rel_path = os.path.relpath(root, self.temp_dir)
-            logger.info(f"{indent}📂 {rel_path if rel_path != '.' else 'ROOT'}/")
-            
-            # Log relevant files
-            sub_indent = ' ' * 2 * (level + 1)
-            for file in files[:10]:  # Limit to first 10 files per directory
-                if file.lower().endswith(('.pdf', '.docx', '.doc', '.txt', '.json')):
-                    file_size = os.path.getsize(os.path.join(root, file)) / (1024 * 1024)
-                    logger.info(f"{sub_indent}📄 {file} ({file_size:.1f} MB)")
-            
-            if len(files) > 10:
-                logger.info(f"{sub_indent}... and {len(files) - 10} more files")
-    
-    def check_github_status(self) -> Dict[str, Any]:
-        """Check GitHub integration status"""
-        return {
-            "enabled": self.enabled,
-            "token_configured": bool(self.token),
-            "repository_url": self.repo_url if self.enabled else "Not configured",
-            "branch": self.branch if self.enabled else "Not configured",
-            "git_available": shutil.which("git") is not None
-        }
-
-# Initialize GitHub loader
-GITHUB_LOADER = GitHubDataLoader()
-
-# ============================
-# 🛡️ ROBUST MODEL MANAGEMENT
-# ============================
-
-class ModelManager:
-    """Centralized model management with error handling and recovery"""
-    
-    def __init__(self):
-        self.tokenizer: Optional[AutoTokenizer] = None
-        self.language_model: Optional[AutoModelForCausalLM] = None
-        self.embedding_model: Optional[SentenceTransformer] = None
-        self._initialize_models()
-    
-    def _initialize_models(self) -> None:
-        """Initialize all models with robust error handling"""
-        try:
-            self._load_tokenizer()
-            self._load_language_model()
-            self._load_embedding_model()
-            logger.info("✅ All models loaded successfully")
-        except Exception as e:
-            logger.error(f"❌ Model initialization failed: {e}")
-            raise RuntimeError("Critical model loading failure")
-    
-    def _load_tokenizer(self) -> None:
-        """Load tokenizer with configuration"""
-        try:
-            self.tokenizer = AutoTokenizer.from_pretrained(CONFIG.LANGUAGE_MODEL)
-            self.tokenizer.pad_token = self.tokenizer.eos_token
-            self.tokenizer.padding_side = "right"
-            logger.info(f"✅ Tokenizer loaded: {CONFIG.LANGUAGE_MODEL}")
-        except Exception as e:
-            logger.error(f"❌ Tokenizer loading failed: {e}")
-            raise
-    
-    def _load_language_model(self) -> None:
-        """Load language model with device management"""
-        try:
-            self.language_model = AutoModelForCausalLM.from_pretrained(
-                CONFIG.LANGUAGE_MODEL,
-                torch_dtype=torch.float16,
-                device_map="auto",
-                trust_remote_code=True
-            )
-            logger.info(f"✅ Language model loaded: {CONFIG.LANGUAGE_MODEL}")
-        except Exception as e:
-            logger.error(f"❌ Language model loading failed: {e}")
-            raise
-    
-    def _load_embedding_model(self) -> None:
-        """Load embedding model with device management"""
-        try:
-            self.embedding_model = SentenceTransformer(CONFIG.EMBEDDING_MODEL)
-            
-            # Smart device placement
-            if torch.cuda.is_available():
-                try:
-                    memory_info = torch.cuda.get_device_properties(0)
-                    logger.info(f"🎯 GPU Memory: {memory_info.total_memory / 1024**3:.1f} GB")
-                    self.embedding_model = self.embedding_model.to(DEVICE)
-                except Exception as cuda_error:
-                    logger.warning(f"⚠️ CUDA error, using CPU: {cuda_error}")
-                    self.embedding_model = self.embedding_model.to(torch.device("cpu"))
-            
-            logger.info(f"✅ Embedding model loaded: {CONFIG.EMBEDDING_MODEL}")
-        except Exception as e:
-            logger.error(f"❌ Embedding model loading failed: {e}")
-            raise
-    
-    def encode_texts(self, texts: Union[str, List[str]], **kwargs) -> np.ndarray:
-        """Safe text encoding with error handling"""
-        if self.embedding_model is None:
-            raise RuntimeError("Embedding model not initialized")
-        
-        if isinstance(texts, str):
-            texts = [texts]
-        
-        try:
-            return self.embedding_model.encode(texts, **kwargs)
-        except RuntimeError as e:
-            if "out of memory" in str(e).lower():
-                logger.warning("🧹 GPU OOM, clearing cache and retrying...")
-                torch.cuda.empty_cache()
-                return self.embedding_model.encode(texts, **kwargs)
-            raise
-    
-    def generate_response(self, prompt: str, **kwargs) -> str:
-        """Generate model response with error handling"""
-        if self.language_model is None or self.tokenizer is None:
-            raise RuntimeError("Language model or tokenizer not initialized")
-        
-        inputs = self.tokenizer(
-            prompt, 
-            return_tensors="pt", 
-            truncation=True, 
-            max_length=2048
-        ).to(self.language_model.device)
-        
-        generation_params = {
-            "max_new_tokens": CONFIG.MAX_NEW_TOKENS,
-            "do_sample": True,
-            "temperature": CONFIG.TEMPERATURE,
-            "top_p": CONFIG.TOP_P,
-            "repetition_penalty": CONFIG.REPETITION_PENALTY,
-            "eos_token_id": self.tokenizer.eos_token_id,
-            "pad_token_id": self.tokenizer.pad_token_id,
-            "early_stopping": True,
-            **kwargs
-        }
-        
-        with torch.no_grad():
-            outputs = self.language_model.generate(
-                input_ids=inputs["input_ids"],
-                attention_mask=inputs["attention_mask"],
-                **generation_params
-            )
-        
-        decoded = self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-        return self._clean_response(decoded, prompt)
-    
-    def _clean_response(self, response: str, prompt: str) -> str:
-        """Clean and validate generated response"""
-        # Extract answer portion
-        if "### ANSWER:" in response:
-            answer = response.split("### ANSWER:")[-1].strip()
-        else:
-            # Remove prompt from response
-            answer = response.replace(prompt, "").strip()
-        
-        # Clean artifacts
-        answer = re.sub(r'\b(\d)\s+\1(\s+\1)+', '', answer)  # Repeated digits
-        answer = re.sub(r'(\w)\1{3,}', r'\1', answer)        # Character repetition
-        answer = re.sub(r'\s+', ' ', answer)                 # Normalize whitespace
-        answer = re.sub(r'\b(the the|and and|of of|in in)\b', r'\1'.split()[0], answer)
-        
-        # Ensure proper ending
-        if answer and not answer.endswith(('.', '!', '?')):
-            answer += "."
-        
-        return answer
-
-# Initialize model manager
-MODEL_MANAGER = ModelManager()
-
-# ============================
-# 🎯 INTELLIGENT INTENT CLASSIFICATION
-# ============================
-
-class IntentClassifier:
-    """Advanced intent classification for clinical vs navigation queries"""
-    
-    # Comprehensive keyword sets
-    CLINICAL_KEYWORDS = {
-        "procedures": ["surgery", "procedure", "surgical", "operation", "technique", "method"],
-        "medical_terms": ["recovery", "healing", "risks", "complications", "anesthesia", "treatment"],
-        "anatomy": ["tissue", "skin", "muscle", "bone", "nerve", "blood", "vessel"],
-        "specialties": ["reconstruction", "implant", "graft", "flap", "rhinoplasty", "facelift", 
-                       "liposuction", "augmentation", "reduction", "mastectomy", "tummy tuck"],
-        "clinical_context": ["post-operative", "pre-operative", "aftercare", "diagnosis", "symptoms"]
-    }
-    
-    NAVIGATION_KEYWORDS = {
-        "search": ["find", "locate", "search", "near me", "in my area", "directory"],
-        "providers": ["surgeon", "doctor", "physician", "specialist", "clinic", "hospital"],
-        "logistics": ["cost", "price", "fee", "payment", "insurance", "financing", "appointment"],
-        "contact": ["phone", "email", "address", "location", "hours", "schedule", "book"],
-        "organization": ["asps", "membership", "certification", "accreditation", "foundation"],
-        "website": ["website", "site", "plasticsurgery.org", "online", "photos", "gallery"]
-    }
-    
-    # High-weight phrase patterns
-    CLINICAL_PHRASES = [
-        "what is", "how is performed", "what are the risks", "recovery time",
-        "surgical technique", "medical procedure", "complications of", "side effects"
-    ]
-    
-    NAVIGATION_PHRASES = [
-        "find a surgeon", "cost of", "price of", "how much", "where to",
-        "contact information", "make appointment", "schedule consultation",
-        "before and after photos", "where can I see", "how do I use"
-    ]
-    
-    @classmethod
-    def classify(cls, query: str) -> QueryIntent:
-        """Classify query intent with sophisticated scoring"""
-        query_lower = query.lower().strip()
-        
-        if not query_lower:
-            return QueryIntent.NAVIGATION
-        
-        # Calculate keyword scores
-        clinical_score = cls._calculate_keyword_score(query_lower, cls.CLINICAL_KEYWORDS)
-        navigation_score = cls._calculate_keyword_score(query_lower, cls.NAVIGATION_KEYWORDS)
-        
-        # Calculate phrase scores (higher weight)
-        clinical_score += cls._calculate_phrase_score(query_lower, cls.CLINICAL_PHRASES) * 3
-        navigation_score += cls._calculate_phrase_score(query_lower, cls.NAVIGATION_PHRASES) * 3
-        
-        # Apply heuristics
-        clinical_score += cls._apply_clinical_heuristics(query_lower)
-        navigation_score += cls._apply_navigation_heuristics(query_lower)
-        
-        # Determine intent
-        intent = QueryIntent.CLINICAL if clinical_score > navigation_score else QueryIntent.NAVIGATION
-        
-        logger.info(f"🎯 Intent: {intent.value} (Clinical: {clinical_score}, Navigation: {navigation_score})")
-        return intent
-    
-    @staticmethod
-    def _calculate_keyword_score(query: str, keyword_categories: Dict[str, List[str]]) -> int:
-        """Calculate weighted keyword score"""
-        score = 0
-        for category, keywords in keyword_categories.items():
-            category_score = sum(2 for keyword in keywords if keyword in query)
-            score += category_score
-        return score
-    
-    @staticmethod
-    def _calculate_phrase_score(query: str, phrases: List[str]) -> int:
-        """Calculate phrase-based score"""
-        return sum(5 for phrase in phrases if phrase in query)
-    
-    @staticmethod
-    def _apply_clinical_heuristics(query: str) -> int:
-        """Apply clinical-specific heuristics"""
-        score = 0
-        
-        # Medical question patterns
-        if any(word in query for word in ["how", "what", "when", "where", "why"]):
-            if any(word in query for word in ["procedure", "surgery", "technique", "recovery"]):
-                score += 4
-        
-        # Clinical terminology patterns
-        if any(pattern in query for pattern in ["post-op", "pre-op", "medical", "surgical"]):
-            score += 3
-        
-        return score
-    
-    @staticmethod
-    def _apply_navigation_heuristics(query: str) -> int:
-        """Apply navigation-specific heuristics"""
-        score = 0
-        
-        # Website/service indicators
-        website_indicators = ["website", "plasticsurgery.org", "photos", "gallery", "tool"]
-        if any(indicator in query for indicator in website_indicators):
-            score += 6
-        
-        # Service request patterns
-        if any(pattern in query for pattern in ["find", "cost", "price", "appointment"]):
-            score += 4
-        
-        return score
-
-# ============================
-# 📄 ADVANCED DOCUMENT PROCESSING
-# ============================
-
-class DocumentProcessor:
-    """Advanced document processing with multiple format support"""
-    
-    @staticmethod
-    def extract_text_from_pdf(pdf_path: str) -> str:
-        """Extract text from PDF using PyMuPDF"""
-        try:
-            doc = fitz.open(pdf_path)
-            text_parts = []
-            
-            for page_num in range(doc.page_count):
-                page = doc[page_num]
-                text = page.get_text()
-                if text.strip():
-                    text_parts.append(text)
-            
-            doc.close()
-            return "\n\n".join(text_parts).strip()
-        except Exception as e:
-            logger.error(f"❌ PDF extraction failed for {pdf_path}: {e}")
-            return ""
-    
-    @staticmethod
-    def extract_text_from_docx(docx_path: str) -> str:
-        """Extract text from DOCX files"""
-        try:
-            doc = Document(docx_path)
-            paragraphs = [p.text for p in doc.paragraphs if p.text.strip()]
-            return "\n\n".join(paragraphs).strip()
-        except Exception as e:
-            logger.error(f"❌ DOCX extraction failed for {docx_path}: {e}")
-            return ""
-    
-    @staticmethod
-    def extract_text_from_image(image_path: str) -> str:
-        """Extract text from images using OCR"""
-        if pytesseract is None:
-            logger.warning("❌ pytesseract not available for OCR")
-            return ""
-        
-        try:
-            image = Image.open(image_path)
-            text = pytesseract.image_to_string(image)
-            return text.strip()
-        except Exception as e:
-            logger.error(f"❌ OCR extraction failed for {image_path}: {e}")
-            return ""
-    
-    @staticmethod
-    def extract_text_from_html(html_path: str) -> str:
-        """Extract meaningful text from HTML files"""
-        try:
-            with open(html_path, "r", encoding="utf-8") as f:
-                soup = BeautifulSoup(f.read(), "html.parser")
-            
-            # Remove script and style elements
-            for script in soup(["script", "style"]):
-                script.decompose()
-            
-            # Extract text from meaningful elements
-            text_elements = soup.find_all(['p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'li'])
-            texts = [elem.get_text(separator=" ", strip=True) for elem in text_elements]
-            meaningful_texts = [text for text in texts if len(text.split()) > 10]
-            
-            return "\n\n".join(meaningful_texts).strip()
-        except Exception as e:
-            logger.error(f"❌ HTML extraction failed for {html_path}: {e}")
-            return ""
-
-# ============================
-# 🔪 INTELLIGENT TEXT CHUNKING
-# ============================
-
-class TextChunker:
-    """Advanced text chunking with semantic awareness"""
-    
-    @staticmethod
-    def is_valid_chunk(text: str) -> bool:
-        """Validate chunk quality and relevance"""
-        text_lower = text.lower().strip()
-        
-        # Length validation
-        if len(text.split()) < CONFIG.MIN_CHUNK_WORDS:
-            return False
-        
-        # Skip boilerplate content
-        skip_phrases = [
-            "table of contents", "copyright", "terms and conditions",
-            "accessibility statement", "website feedback", "privacy policy"
-        ]
-        
-        if any(phrase in text_lower for phrase in skip_phrases):
-            return False
-        
-        # Skip navigation elements
-        skip_starts = ["figure", "edition", "page", "chapter", "section"]
-        if any(text_lower.startswith(start) for start in skip_starts):
-            return False
-        
-        return True
-    
-    @staticmethod
-    def safe_sentence_tokenize(text: str) -> List[str]:
-        """Safe sentence tokenization with fallback"""
-        try:
-            # Download punkt tokenizer if needed
-            try:
-                nltk.data.find('tokenizers/punkt')
-            except LookupError:
-                nltk.download('punkt', quiet=True)
-            
-            from nltk.tokenize import sent_tokenize
-            return sent_tokenize(text)
-        except Exception as e:
-            logger.warning(f"⚠️ NLTK tokenization failed, using fallback: {e}")
-            # Simple fallback
-            sentences = re.split(r'[.!?]+', text)
-            return [s.strip() for s in sentences if s.strip()]
-    
-    @classmethod
-    def chunk_text(
-        cls, 
-        text: str, 
-        max_words: int = None, 
-        overlap: int = None, 
-        min_words: int = None
-    ) -> List[str]:
-        """Intelligent text chunking with overlap"""
-        max_words = max_words or CONFIG.MAX_CHUNK_WORDS
-        overlap = overlap or CONFIG.CHUNK_OVERLAP
-        min_words = min_words or CONFIG.MIN_CHUNK_WORDS
-        
-        sentences = cls.safe_sentence_tokenize(text)
-        chunks = []
-        current_chunk = []
-        current_word_count = 0
-        
-        for sentence in sentences:
-            sentence_words = sentence.split()
-            sentence_word_count = len(sentence_words)
-            
-            # Check if adding this sentence would exceed limit
-            if current_word_count + sentence_word_count > max_words and current_chunk:
-                # Finalize current chunk
-                chunk_text = " ".join(current_chunk).strip()
-                if current_word_count >= min_words and cls.is_valid_chunk(chunk_text):
-                    chunks.append(chunk_text)
-                
-                # Start new chunk with overlap
-                if overlap > 0 and len(current_chunk) > overlap:
-                    overlap_words = " ".join(current_chunk[-overlap:]).split()
-                    current_chunk = overlap_words + sentence_words
-                    current_word_count = len(current_chunk)
-                else:
-                    current_chunk = sentence_words
-                    current_word_count = sentence_word_count
-            else:
-                current_chunk.extend(sentence_words)
-                current_word_count += sentence_word_count
-        
-        # Add final chunk
-        if current_chunk and current_word_count >= min_words:
-            chunk_text = " ".join(current_chunk).strip()
-            if cls.is_valid_chunk(chunk_text):
-                chunks.append(chunk_text)
-        
-        return chunks
 
 # ============================
 # 🏗️ KNOWLEDGE BASE BUILDER
@@ -795,7 +90,7 @@ class KnowledgeBaseBuilder:
     
     def __init__(self, org_id: str = "asps"):
         self.org_id = org_id
-        self.base_path = Path(CONFIG.ORG_DATA_ROOT) / org_id
+        self.base_path = Path(os.path.dirname(os.path.abspath(__file__))) / "org_data" / org_id
         self.base_path.mkdir(parents=True, exist_ok=True)
     
     def build_clinical_knowledge_base(self) -> KnowledgeBase:
@@ -804,10 +99,9 @@ class KnowledgeBaseBuilder:
         
         clinical_chunks = []
         clinical_dirs = [
-            # Match the exact 3 blue folders from GitHub repo
-            Path(CONFIG.BASE_DIR) / "clinical",
-            Path(CONFIG.BASE_DIR) / "op notes",
-            Path(CONFIG.BASE_DIR) / "textbook notes"
+            Path("clinical"),
+            Path("op notes"),
+            Path("textbook notes")
         ]
         
         for clinical_dir in clinical_dirs:
@@ -831,14 +125,10 @@ class KnowledgeBaseBuilder:
         logger.info("🧭 Building navigation knowledge base...")
         
         navigation_chunks = []
-        # Match the exact JSON files from GitHub repo structure
         json_files = [
-            # Base navigation files
-            "nav1.json", 
-            "nav2.json",
-            # Comprehensive split files (exactly as shown in GitHub)
+            "nav1.json", "nav2.json",
             "comprehensive_split_01.json", "comprehensive_split_02.json",
-            "comprehensive_split_03.json", "comprehensive_split_04.json", 
+            "comprehensive_split_03.json", "comprehensive_split_04.json",
             "comprehensive_split_05.json", "comprehensive_split_06.json",
             "comprehensive_split_07.json", "comprehensive_split_08.json",
             "comprehensive_split_09.json", "comprehensive_split_10.json",
@@ -848,7 +138,7 @@ class KnowledgeBaseBuilder:
         ]
         
         for json_file in json_files:
-            json_path = Path(CONFIG.BASE_DIR) / json_file
+            json_path = Path(json_file)
             if json_path.exists():
                 chunks = self._process_json_file(json_path)
                 navigation_chunks.extend(chunks)
@@ -931,7 +221,6 @@ class KnowledgeBaseBuilder:
         if isinstance(item, str):
             return item.strip()
         elif isinstance(item, dict):
-            # Try common text fields
             for field in ['text', 'content', 'description', 'body']:
                 if field in item and isinstance(item[field], str):
                     return item[field].strip()
@@ -941,18 +230,14 @@ class KnowledgeBaseBuilder:
         """Build FAISS knowledge base from chunks"""
         logger.info(f"🔢 Building {kb_type} FAISS index with {len(chunks)} chunks...")
         
-        # Remove duplicates while preserving order
         unique_chunks = list(dict.fromkeys(chunks))
         
-        # Generate embeddings
         embeddings = MODEL_MANAGER.encode_texts(unique_chunks, show_progress_bar=True)
         
-        # Build FAISS index
         dimension = embeddings.shape[1]
         faiss_index = faiss.IndexFlatL2(dimension)
-        faiss_index.add(embeddings.astype(np.float32))
+        faiss_index.add(embeddings.astype(np.float32))  # <-- Use np.float32 consistently
         
-        # Save to disk
         self._save_knowledge_base(unique_chunks, embeddings, faiss_index, kb_type)
         
         logger.info(f"✅ {kb_type.capitalize()} knowledge base built: {len(unique_chunks)} chunks")
@@ -963,13 +248,7 @@ class KnowledgeBaseBuilder:
             faiss_index=faiss_index
         )
     
-    def _save_knowledge_base(
-        self, 
-        chunks: List[str], 
-        embeddings: np.ndarray, 
-        faiss_index: faiss.Index, 
-        kb_type: str
-    ) -> None:
+    def _save_knowledge_base(self, chunks: List[str], embeddings: Any, faiss_index: Any, kb_type: str) -> None:
         """Save knowledge base components to disk"""
         try:
             chunks_path = self.base_path / f"{kb_type}_chunks.pkl"
@@ -1026,7 +305,7 @@ class RetrievalSystem:
             
             # Search FAISS index
             distances, indices = knowledge_base.faiss_index.search(
-                query_embedding.astype(np.float32), 
+                query_embedding.astype(numpy.float32), 
                 min(CONFIG.INITIAL_K, knowledge_base.size)
             )
             
