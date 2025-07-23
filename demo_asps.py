@@ -806,12 +806,20 @@ def generate_rag_answer_with_context(user_question, context_chunks, mistral_toke
     # Clean up repeated characters and invalid sequences
     import re
     
+    # Remove the specific pattern of repeated numbers with spaces (like "1 3 2 3 3 3 4 3...")
+    answer = re.sub(r'\b(\d+\s+){4,}.*$', '', answer)    # Remove sequences of 4+ numbers with spaces at end
+    answer = re.sub(r'\s+(\d+\s+){3,}.*$', '', answer)   # Remove sequences of 3+ spaced numbers anywhere
+    
     # Remove excessive repeated characters (like "9 9 9 9 9...")
     answer = re.sub(r'\b(\d)\s+\1(\s+\1)+', '', answer)  # Remove repeated digits with spaces
     answer = re.sub(r'(\w)\1{3,}', r'\1', answer)        # Remove excessive character repetition
-    answer = re.sub(r'\s+', ' ', answer)                 # Normalize whitespace
     
-    # Remove common model artifacts
+    # Remove trailing number sequences and artifacts
+    answer = re.sub(r'\s+\d+(\s+\d+)*\s*$', '', answer) # Remove trailing number sequences
+    answer = re.sub(r'\s+[0-9\s]+$', '', answer)         # Remove any trailing numbers and spaces
+    
+    # Clean up whitespace and common artifacts
+    answer = re.sub(r'\s+', ' ', answer)                 # Normalize whitespace
     answer = re.sub(r'\b(the the|and and|of of|in in)\b', r'\1'.split()[0], answer)  # Remove repeated words
     answer = re.sub(r'[^\w\s\.,!?:;()-]', '', answer)    # Remove invalid characters
     
@@ -821,6 +829,16 @@ def generate_rag_answer_with_context(user_question, context_chunks, mistral_toke
         answer = " ".join(sentences[:12]).strip()
     else:
         answer = answer.strip()
+
+    # Final cleanup after sentence truncation - remove any remaining number artifacts
+    answer = re.sub(r'\s+\d+(\s+\d+)*\s*$', '', answer)  # Remove any trailing number sequences
+    answer = re.sub(r'\s+[0-9\s]+$', '', answer)          # Remove trailing numbers and spaces
+    
+    # Additional safety check for the specific pattern you encountered
+    answer = re.sub(r'\.\s*\d+(\s+\d+)+.*$', '.', answer)  # Remove anything after a period followed by number sequences
+    answer = re.sub(r'\s+\d+\s+\d+\s+\d+.*$', '', answer)  # Remove sequences of 3+ spaced numbers at end
+    
+    answer = answer.strip()                               # Clean up whitespace
 
     # Ensure answer ends with a period
     if not answer.endswith(('.', '!', '?')):
@@ -1048,24 +1066,18 @@ def verify_clinical_training_setup():
     
     print("🔍 Verifying clinical training setup for RunPod deployment...")
     
-    # Define all clinical training directories that should be in GitHub repo
+    # Define all clinical training directories that should be in GitHub repo (3 blue folders only)
     clinical_dirs_github = [
-        "Training Data Op",
-        "Training Data Textbooks", 
-        "Validate",
-        "op notes",
-        "textbook notes",
-        "clinical"
+        "clinical",         # Blue folder 1
+        "op notes",         # Blue folder 2  
+        "textbook notes"    # Blue folder 3
     ]
     
-    # Also check local paths (fallback for development)
+    # Also check local paths (fallback for development) - 3 blue folders only
     clinical_dirs_local = [
-        ("clinical", os.path.join(BASE_DIR, "clinical")),
-        ("Training Data Op", os.path.join(BASE_DIR, "Training Data Op")),
-        ("Training Data Textbooks", os.path.join(BASE_DIR, "Training Data Textbooks")), 
-        ("Validate", os.path.join(BASE_DIR, "Validate")),
-        ("op notes", os.path.join(BASE_DIR, "op notes")),
-        ("textbook notes", os.path.join(BASE_DIR, "textbook notes"))
+        ("clinical", os.path.join(BASE_DIR, "clinical")),           # Blue folder 1
+        ("op notes", os.path.join(BASE_DIR, "op notes")),           # Blue folder 2
+        ("textbook notes", os.path.join(BASE_DIR, "textbook notes")) # Blue folder 3
     ]
     
     # Required GitHub JSON files
@@ -1182,20 +1194,18 @@ def print_runpod_deployment_checklist():
     print("   Branch: main")
     print("")
     
-    print("📄 JSON Knowledge Base Files (Root Directory):")
+    print("📄 JSON Knowledge Base Files (Root Directory) - ALL GO TO NAVIGATION:")
     print("   ✅ navigation_training_data.json   - Original navigation training data")
-    print("   ✅ nav1.json                       - Clinical content (20.88MB, 31,893 chunks)")
-    print("   ✅ nav2.json                       - Navigation content (17.28MB, 14,649 chunks)")
-    print("   📦 ultimate_asps_knowledge_base.json - Full backup file (37.37MB)")
+    print("   ✅ nav1.json                       - Goes to NAVIGATION index")
+    print("   ✅ nav2.json                       - Goes to NAVIGATION index")
+    print("   ✅ comprehensive_split_*.json      - All splits go to NAVIGATION index")
+    print("   📦 ultimate_asps_knowledge_base.json - Backup file for NAVIGATION")
     print("")
     
-    print("📁 Clinical Training Directories (Should be in repository):")
-    print("   ✅ Training Data Op/               - Operative procedure PDFs/DOCX")
-    print("   ✅ Training Data Textbooks/        - Medical textbook materials")
-    print("   ✅ Validate/                       - Validation datasets")
-    print("   ✅ op notes/                       - Operative notes")
-    print("   ✅ textbook notes/                 - Textbook note summaries")
-    print("   ✅ clinical/                       - General clinical materials")
+    print("📁 Clinical Training Directories (3 Blue Folders Only) - GO TO CLINICAL:")
+    print("   ✅ clinical/                       - Clinical materials folder (blue)")
+    print("   ✅ op notes/                       - Operative notes folder (blue)")
+    print("   ✅ textbook notes/                 - Textbook notes folder (blue)")
     print("")
     
     print("🔧 RUNPOD DEPLOYMENT PROCESS:")
@@ -1203,22 +1213,22 @@ def print_runpod_deployment_checklist():
     print("   2️⃣ Clone repository: git clone https://github.com/swolmer/athena-rag-api.git")
     print("   3️⃣ Run: python demo_asps.py")
     print("   4️⃣ System will automatically:")
-    print("      - Download nav1.json, nav2.json, navigation_training_data.json")
-    print("      - Load clinical training directories from cloned repo")
-    print("      - Build dual FAISS indexes (clinical + navigation)")
+    print("      - Download ALL JSON files (nav1.json, nav2.json, navigation_training_data.json, comprehensive_split_*.json)")
+    print("      - Load clinical training directories from 3 blue folders only")
+    print("      - Build dual FAISS indexes (clinical from folders + navigation from JSON)")
     print("      - Start training/inference")
     print("")
     
     print("💡 INDEX MAPPING:")
-    print("   📚 CLINICAL INDEX uses:")
-    print("      - nav1.json (clinical content from knowledge base)")
-    print("      - Training Data Op/ (operative procedures)")
-    print("      - Training Data Textbooks/ (medical textbooks)")
-    print("      - Validate/, op notes/, textbook notes/, clinical/")
-    print("")
     print("   🧭 NAVIGATION INDEX uses:")
-    print("      - nav2.json (navigation content from knowledge base)")
-    print("      - navigation_training_data.json (original navigation data)")
+    print("      - ALL JSON files (nav1.json, nav2.json, navigation_training_data.json)")
+    print("      - comprehensive_split_*.json files")
+    print("      - ultimate_asps_knowledge_base.json")
+    print("")
+    print("   📚 CLINICAL INDEX uses:")
+    print("      - clinical/ folder (blue folder)")
+    print("      - op notes/ folder (blue folder)")
+    print("      - textbook notes/ folder (blue folder)")
     print("")
     
     print("🎯 FINAL VERIFICATION:")
@@ -1233,8 +1243,8 @@ def build_clinical_navigation_indexes(org_id="asps"):
     """
     Builds separate FAISS indexes for clinical and navigation content.
     
-    Clinical: Uses original training materials (PDFs, medical content)
-    Navigation: Uses scraped ASPS website content for site navigation
+    NAVIGATION: Uses ALL JSON files (nav1.json, nav2.json, navigation_training_data.json, comprehensive_split_*.json)
+    CLINICAL: Uses ONLY 3 blue folders (clinical/, op notes/, textbook notes/)
     """
     print(f"🏗️ Building clinical and navigation indexes for '{org_id}'...")
     paths = get_org_paths(org_id)
@@ -1927,8 +1937,8 @@ def download_knowledge_base_from_github(org_id="asps", github_repo="swolmer/athe
     
     Downloads knowledge base JSON files for navigation index:
     - navigation_training_data.json: Original navigation training data  
-    - nav1.json: Clinical content split (20.88 MB, 31,893 chunks)
-    - nav2.json: Navigation content split (17.28 MB, 14,649 chunks)
+    - nav1.json: Now goes to NAVIGATION index (ALL JSON files → navigation)
+    - nav2.json: Now goes to NAVIGATION index (ALL JSON files → navigation)
     
     For private repositories, set GITHUB_TOKEN environment variable.
     For RunPod: This function downloads JSON knowledge bases. Clinical training 
@@ -1950,8 +1960,8 @@ def download_knowledge_base_from_github(org_id="asps", github_repo="swolmer/athe
     # These will be used for NAVIGATION and CLINICAL index building
     knowledge_files = [
         "navigation_training_data.json",  # ✅ Original navigation data → NAVIGATION INDEX
-        "nav1.json",                      # 🆕 Clinical content split (20.88 MB, 31,893 chunks) → CLINICAL INDEX
-        "nav2.json",                      # 🆕 Navigation content split (17.28 MB, 14,649 chunks) → NAVIGATION INDEX
+        "nav1.json",                      # 🆕 ALL JSON files now go to NAVIGATION INDEX
+        "nav2.json",                      # 🆕 ALL JSON files now go to NAVIGATION INDEX
         "ultimate_asps_knowledge_base.json"  # 📦 Full file as backup (37.37 MB)
     ]    # Ensure directories exist
     paths = get_org_paths(org_id)
@@ -2027,13 +2037,20 @@ def load_github_knowledge_bases_into_memory(org_id="asps"):
         clinical_chunks = []
         navigation_chunks = []
         
-        # Try to load different knowledge base files (from repo root)
+        # ALL JSON files go to NAVIGATION index (per user specification)
         kb_files = [
             ("navigation_training_data.json", "navigation"),      # Original navigation training data
-            ("nav1.json", "clinical"),                           # Clinical content split (formerly clinical_knowledge_base.json)
-            ("nav2.json", "navigation"),                         # Navigation content split (formerly navigation_knowledge_base.json) 
-            ("ultimate_asps_knowledge_base.json", "mixed")       # Full comprehensive file as fallback
+            ("nav1.json", "navigation"),                         # ALL JSON files → NAVIGATION INDEX
+            ("nav2.json", "navigation"),                         # ALL JSON files → NAVIGATION INDEX
+            ("ultimate_asps_knowledge_base.json", "navigation"), # ALL JSON files → NAVIGATION INDEX
         ]
+        
+        # Also load all comprehensive_split_*.json files for navigation
+        import glob
+        split_files = glob.glob(os.path.join(paths["base"], "comprehensive_split_*.json"))
+        for split_file in split_files:
+            filename = os.path.basename(split_file)
+            kb_files.append((filename, "navigation"))  # ALL comprehensive splits → NAVIGATION INDEX
         
         for filename, content_type in kb_files:
             file_path = os.path.join(paths["base"], filename)
@@ -2077,18 +2094,15 @@ def load_github_knowledge_bases_into_memory(org_id="asps"):
                 print(f"   ⚠️ {filename} not found, skipping...")
         
         # ============================
-        # 📚 STEP 2: LOAD CLINICAL TRAINING DIRECTORIES (NEW!)
+        # 📚 STEP 2: LOAD CLINICAL TRAINING DIRECTORIES (ONLY 3 BLUE FOLDERS!)
         # ============================
         print("📚 Loading clinical training directories for CLINICAL FAISS...")
         
-        # Define all clinical training directories that should be loaded
+        # ONLY the 3 blue folders specified by user for CLINICAL content
         clinical_training_dirs = [
-            "Training Data Op",
-            "Training Data Textbooks", 
-            "Validate",
-            "op notes",
-            "textbook notes",
-            "clinical"
+            "clinical",         # Blue folder 1
+            "op notes",         # Blue folder 2  
+            "textbook notes"    # Blue folder 3
         ]
         
         # Look for clinical directories in base path (after GitHub clone)
@@ -2133,8 +2147,11 @@ def load_github_knowledge_bases_into_memory(org_id="asps"):
         navigation_chunks = list(dict.fromkeys(navigation_chunks))
         
         print(f"📊 Final processed knowledge base:")
-        print(f"   📚 Clinical chunks: {len(clinical_chunks)} (JSON + directories)")
-        print(f"   🧭 Navigation chunks: {len(navigation_chunks)} (JSON only)")
+        print(f"   🧭 Navigation chunks: {len(navigation_chunks)} (ALL JSON files)")
+        print(f"   📚 Clinical chunks: {len(clinical_chunks)} (3 blue folders only)")
+        print(f"   📋 Data distribution:")
+        print(f"      Navigation: nav1.json + nav2.json + navigation_training_data.json + comprehensive_split_*.json")
+        print(f"      Clinical: clinical/ + op notes/ + textbook notes/ folders")
         
         # Build FAISS indexes
         print(f"🔢 Building FAISS indexes...")
