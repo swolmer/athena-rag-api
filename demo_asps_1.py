@@ -35,11 +35,12 @@ from torch.utils.data import Dataset
 from dotenv import load_dotenv
 load_dotenv()  # ✅ Load environment variables from .env file
 
-HF_TOKEN = os.getenv("HF_TOKEN")
-RAG_API_KEY = os.getenv("RAG_API_KEY")
+# ✅ RunPod Token Configuration - hardcoded for deployment
+HF_TOKEN = "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"
+RAG_API_KEY = os.getenv("RAG_API_KEY", "default_key")
 
-if not RAG_API_KEY:
-    print("⚠️ RAG_API_KEY is not set. Check your .env file.")
+if not RAG_API_KEY or RAG_API_KEY == "default_key":
+    print("⚠️ Using default RAG_API_KEY")
 
 # --- Natural Language Processing ---
 import nltk
@@ -155,10 +156,15 @@ ORG_DATA_ROOT = os.path.join(BASE_DIR, "org_data")  # e.g., ./org_data/emory/
 EMBEDDING_MODEL_NAME = "all-MiniLM-L6-v2"
 LLM_MODEL_NAME = "NousResearch/Hermes-2-Pro-Mistral-7B"
 
-# ✅ Optional Hugging Face login
+# ✅ Optional Hugging Face login with error handling
 if HF_TOKEN:
-    from huggingface_hub import login
-    login(token=HF_TOKEN)
+    try:
+        from huggingface_hub import login
+        login(token=HF_TOKEN)
+        print("✅ HuggingFace authentication successful")
+    except Exception as hf_error:
+        print(f"⚠️ HuggingFace login failed: {hf_error}")
+        print("🔄 Continuing without HF authentication - public models only")
 
 # ✅ Logging
 logging.basicConfig(level=logging.INFO)

@@ -240,7 +240,7 @@ class SystemManager:
             "GITHUB_TOKEN": "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",
             "GITHUB_REPO_URL": "https://github.com/swolmer/athena-rag-api.git",
             "GITHUB_BRANCH": "asps_demo",
-            "HF_TOKEN": "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",
+            "HF_TOKEN": "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",
             "RAG_API_KEY": "your-rag-api-key-here",
             "PYTHONPATH": str(self.base_dir),
             "TOKENIZERS_PARALLELISM": "false",
