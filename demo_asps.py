@@ -743,10 +743,10 @@ def generate_rag_answer_with_context(user_question, context_chunks, mistral_toke
         else:
             return ("I prioritize your safety and health by not providing medical information I cannot verify from my training materials. "
                    "Rather than risk giving you incorrect clinical guidance, I strongly recommend:\n\n"
-                   "🩺 **Consult a board-certified plastic surgeon** - They can provide personalized, evidence-based advice\n"
-                   "📚 **Review peer-reviewed literature** - Look for recent studies on your specific concern\n"
-                   "🏥 **Speak with your healthcare provider** - They know your medical history and current health status\n"
-                   "📞 **Contact ASPS** at (847) 228-9900 for surgeon referrals in your area\n\n"
+                   "🩺 Consult a board-certified plastic surgeon - They can provide personalized, evidence-based advice\n"
+                   "📚 Review peer-reviewed literature - Look for recent studies on your specific concern\n"
+                   "🏥 Speak with your healthcare provider - They know your medical history and current health status\n"
+                   "📞 Contact ASPS at (847) 228-9900 for surgeon referrals in your area\n\n"
                    "Your health and safety are paramount - professional medical consultation is always the safest approach for clinical questions.")
 
     context = "\n\n".join(f"- {chunk.strip()}" for chunk in context_chunks)
@@ -781,19 +781,19 @@ def generate_rag_answer_with_context(user_question, context_chunks, mistral_toke
             f"### ANSWER:\n"
         )
 
-    inputs = mistral_tokenizer(prompt, return_tensors="pt", truncation=True, max_length=2048).to(mistral_model.device)
+    inputs = mistral_tokenizer(prompt, return_tensors="pt", truncation=True, max_length=3072).to(mistral_model.device)
 
     with torch.no_grad():
         outputs = mistral_model.generate(
             input_ids=inputs["input_ids"],
             attention_mask=inputs["attention_mask"],
-            max_new_tokens=256,     # increased length for fuller answers
+            max_new_tokens=512,     # increased to 512 for fuller answers without truncation
             do_sample=False,        # deterministic, faster
             temperature=0.1,        # low temperature for more focused responses
             repetition_penalty=1.2, # prevent repetitive text
             eos_token_id=mistral_tokenizer.eos_token_id,
             pad_token_id=mistral_tokenizer.pad_token_id,
-            early_stopping=True     # stop at natural ending points
+            early_stopping=False    # disable early stopping to prevent truncation
         )
 
     decoded = mistral_tokenizer.decode(outputs[0], skip_special_tokens=True)
@@ -815,10 +815,10 @@ def generate_rag_answer_with_context(user_question, context_chunks, mistral_toke
     answer = re.sub(r'\b(the the|and and|of of|in in)\b', r'\1'.split()[0], answer)  # Remove repeated words
     answer = re.sub(r'[^\w\s\.,!?:;()-]', '', answer)    # Remove invalid characters
     
-    # Safe truncation after punctuation marks (., !, ?) - keep up to 8 sentences
+    # Safe truncation after punctuation marks (., !, ?) - keep up to 12 sentences for fuller answers
     sentences = re.split(r'(?<=[.!?])\s+', answer)
-    if len(sentences) > 8:
-        answer = " ".join(sentences[:8]).strip()
+    if len(sentences) > 12:
+        answer = " ".join(sentences[:12]).strip()
     else:
         answer = answer.strip()
 
@@ -832,24 +832,24 @@ def generate_rag_answer_with_context(user_question, context_chunks, mistral_toke
     overlap = answer_tokens & context_tokens
     overlap_score = len(overlap) / max(1, len(answer_tokens))
 
-    if overlap_score < 0.35:
+    if overlap_score < 0.25:
         logging.warning("⚠️ Low token overlap — likely hallucination.")
         if intent == "navigation":
             return ("I don't have enough reliable information to provide accurate guidance about this specific website navigation question. "
                    "Rather than potentially mislead you, I recommend getting current information directly from:\n\n"
-                   "📍 **plasticsurgery.org** - Visit the official site for the most up-to-date features\n"
-                   "🔍 **Site search** - Use their search function for specific topics\n"
-                   "� **ASPS support** - Call (847) 228-9900 for personalized website assistance\n"
-                   "� **Live chat** - Check if they offer live support for navigation questions\n\n"
+                   "📍 plasticsurgery.org - Visit the official site for the most up-to-date features\n"
+                   "🔍 Site search - Use their search function for specific topics\n"
+                   "📞 ASPS support - Call (847) 228-9900 for personalized website assistance\n"
+                   "💬 Live chat - Check if they offer live support for navigation questions\n\n"
                    "This ensures you get accurate, current information about their website resources and tools.")
         else:
             return ("I cannot provide confident medical information for this specific clinical question, as I prioritize accuracy and your safety above all else. "
                    "Rather than risk giving you potentially incorrect medical guidance that could affect your health decisions, I strongly recommend:\n\n"
-                   "🩺 **Board-certified plastic surgeon consultation** - Get personalized, professional medical advice\n"
-                   "📚 **Peer-reviewed medical literature** - Research current, evidence-based studies on your topic\n"
-                   "🏥 **Your healthcare provider** - They understand your medical history and current health status\n"
-                   "📞 **ASPS surgeon referral** - Call (847) 228-9900 to find qualified specialists in your area\n"
-                   "🌐 **ASPS patient education resources** - Visit plasticsurgery.org for verified patient information\n\n"
+                   "🩺 Board-certified plastic surgeon consultation - Get personalized, professional medical advice\n"
+                   "📚 Peer-reviewed medical literature - Research current, evidence-based studies on your topic\n"
+                   "🏥 Your healthcare provider - They understand your medical history and current health status\n"
+                   "📞 ASPS surgeon referral - Call (847) 228-9900 to find qualified specialists in your area\n"
+                   "🌐 ASPS patient education resources - Visit plasticsurgery.org for verified patient information\n\n"
                    "Your health and safety are my top priorities - professional medical consultation is always the most reliable path for clinical guidance.")
 
     return answer
@@ -909,7 +909,7 @@ def evaluate_on_examples(model, tokenizer, sample_questions, save_path="eval_out
 
             # Step 3: Compute token overlap
             overlap_score = token_overlap_score(answer, context_combined)
-            hallucinated = overlap_score < 0.35
+            hallucinated = overlap_score < 0.25
 
             if hallucinated:
                 logging.warning(f"⚠️ Token Overlap = {overlap_score:.2f} — potential hallucination.")
