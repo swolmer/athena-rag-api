@@ -1,0 +1,202 @@
+{
+  "title": "ASPS Website Navigation and Information Location Guide",
+  "source": "plasticsurgery.org",
+  "purpose": "Help users navigate the American Society of Plastic Surgeons website to find specific information",
+  "main_navigation_structure": {
+    "primary_sections": {
+      "cosmetic_procedures": {
+        "url_path": "/cosmetic-procedures",
+        "description": "Complete guide to cosmetic plastic surgery procedures",
+        "organization_methods": {
+          "by_category": [
+            "Breast procedures (augmentation, lift, reduction, implant removal/revision)",
+            "Fat reduction (liposuction, nonsurgical fat reduction)",
+            "Body lifts (arm lift, body contouring, buttock enhancement, thigh lift, tummy tuck)",
+            "Face & neck (facelift, rhinoplasty, eyelid surgery, brow lift, chin surgery)",
+            "Minimally invasive (Botox, dermal fillers, chemical peels, laser treatments)",
+            "Male-specific procedures (gynecomastia surgery, hair transplantation)",
+            "Aesthetic genital procedures"
+          ],
+          "alphabetical_listing": "All procedures listed A-Z for easy browsing",
+          "spanish_language": "Key procedures available in Spanish (en Español section)"
+        },
+        "key_subsections": {
+          "each_procedure_includes": [
+            "Introduction and overview",
+            "Candidate assessment criteria", 
+            "Cost considerations",
+            "Consultation process",
+            "Questions to ask your surgeon",
+            "Risks and safety information",
+            "Preparation guidelines",
+            "Detailed procedure steps",
+            "Recovery expectations",
+            "Expected results",
+            "Before and after photo galleries",
+            "Glossary of medical terms",
+            "Surgeon selection guidance",
+            "3D visual animations"
+          ]
+        }
+      },
+      "reconstructive_procedures": {
+        "url_path": "/reconstructive-procedures",
+        "description": "Medical procedures to restore function and appearance",
+        "categories": [
+          "Breast reconstruction (post-mastectomy options)",
+          "Congenital condition repairs (cleft lip/palate, craniosynostosis)",
+          "Hand surgery (function and strength improvement)",
+          "Skin cancer reconstruction",
+          "Scar revision and minimization",
+          "Gender-affirming surgeries",
+          "Lymphedema treatment",
+          "Microsurgery procedures"
+        ],
+        "organization": "By medical condition and body area affected"
+      },
+      "patient_safety": {
+        "url_path": "/patient-safety",
+        "description": "Comprehensive safety guidelines and surgeon selection criteria",
+        "key_topics": {
+          "choosing_surgeon": "How to verify board certification and qualifications",
+          "professional_affiliation": "Understanding ASPS membership requirements",
+          "accredited_facilities": "Importance of proper surgical facilities",
+          "health_safety": "Personal health considerations before surgery",
+          "risks_safety": "Understanding surgical risks and complications",
+          "questions_to_ask": "Essential questions for surgeon consultations"
+        },
+        "asps_member_qualifications": {
+          "training_requirements": "6+ years surgical training, 3+ years plastic surgery specific",
+          "board_certification": "American Board of Plastic Surgery certification",
+          "ongoing_education": "Continuing medical education requirements",
+          "ethical_standards": "ASPS code of ethics compliance"
+        }
+      }
+    },
+    "search_and_find_tools": {
+      "find_surgeon": {
+        "url": "find.plasticsurgery.org",
+        "description": "Official ASPS surgeon locator tool",
+        "search_criteria": [
+          "Geographic location (zip code, city, state)",
+          "Procedure specialization",
+          "Board certification verification",
+          "ASPS membership status"
+        ]
+      },
+      "photo_galleries": {
+        "url_path": "/photo-gallery", 
+        "description": "Before and after photos organized by procedure type",
+        "categories": "Browse by specific procedures to see real patient results"
+      },
+      "video_gallery": {
+        "url_path": "/video-gallery",
+        "description": "Educational videos explaining procedures and concepts"
+      },
+      "3d_animations": {
+        "url_path": "/3d-animations", 
+        "description": "Interactive 3D visualizations of surgical procedures"
+      }
+    },
+    "educational_resources": {
+      "statistics_reports": {
+        "annual_statistics": "Yearly procedural statistics and trends",
+        "current_report": "2024 Plastic Surgery Statistics Report",
+        "data_includes": "Procedure volumes, demographic trends, cost analysis"
+      },
+      "patient_community": {
+        "ask_surgeon_tool": "Direct questions to board-certified plastic surgeons",
+        "patient_discussions": "Community forum for patient experiences and questions"
+      },
+      "safety_information": {
+        "breast_implant_safety": "Comprehensive implant safety information and FDA updates",
+        "procedure_risks": "Detailed risk information for each type of surgery",
+        "facility_accreditation": "Understanding accredited surgical facility requirements"
+      }
+    }
+  },
+  "navigation_strategies": {
+    "finding_procedure_information": {
+      "method_1": "Use main Cosmetic Procedures or Reconstructive Procedures sections",
+      "method_2": "Browse by body area or concern type",  
+      "method_3": "Use alphabetical listing for specific procedure names",
+      "method_4": "Search by common patient terminology (e.g., 'nose job' for rhinoplasty)"
+    },
+    "surgeon_selection_process": {
+      "step_1": "Start with Patient Safety section to understand qualifications",
+      "step_2": "Use Find a Surgeon tool with location and specialization filters",
+      "step_3": "Verify board certification and ASPS membership",
+      "step_4": "Review surgeon's specific procedure experience and credentials"
+    },
+    "cost_and_consultation_info": {
+      "location": "Each procedure page contains cost considerations section",
+      "consultation_guidance": "Detailed consultation preparation in each procedure guide",
+      "questions_to_ask": "Comprehensive question lists for surgeon meetings"
+    },
+    "visual_resources": {
+      "before_after_photos": "Browse photo gallery by specific procedure type",
+      "procedure_animations": "3D animations show surgical techniques and expected changes",
+      "educational_videos": "Video explanations of procedures and recovery processes"
+    }
+  },
+  "common_user_questions_and_navigation": {
+    "how_to_find_qualified_surgeon": {
+      "navigation_path": "Patient Safety → Choose a Plastic Surgeon → Find a Surgeon tool",
+      "key_verification_steps": [
+        "Board certification in plastic surgery",
+        "ASPS membership status", 
+        "Hospital privileges and facility accreditation",
+        "Specific experience with desired procedure"
+      ]
+    },
+    "procedure_specific_information": {
+      "for_cosmetic_procedures": "Cosmetic Procedures → Select category or browse alphabetically",
+      "for_medical_reconstruction": "Reconstructive Procedures → Browse by condition type",
+      "detailed_info_available": "Each procedure includes complete 14-section guide"
+    },
+    "safety_and_risk_information": {
+      "general_safety": "Patient Safety section covers all safety topics",
+      "procedure_risks": "Each individual procedure page has dedicated risks/safety section",
+      "facility_safety": "Accredited Facilities section explains safety standards"
+    },
+    "cost_information": {
+      "location": "Cost section within each procedure's detailed guide",
+      "factors_affecting_cost": "Surgeon fees, facility fees, anesthesia, geographic location",
+      "insurance_coverage": "Reconstructive procedures may be covered, cosmetic typically not covered"
+    },
+    "recovery_expectations": {
+      "timeline_info": "Recovery section in each procedure guide",
+      "activity_restrictions": "Specific limitations and gradual return to activities",
+      "follow_up_care": "Post-operative care requirements and monitoring"
+    }
+  },
+  "mobile_and_accessibility": {
+    "responsive_design": "Website adapts to mobile devices and tablets",
+    "accessibility_features": "Screen reader compatible, keyboard navigation support",
+    "language_options": "Key procedures available in Spanish",
+    "printable_resources": "Patient education materials can be printed for reference"
+  },
+  "navigation_tips_for_efficiency": {
+    "start_with_safety": "Always begin with Patient Safety section for education",
+    "use_categories": "Browse by body area or procedure category rather than alphabetical if exploring options",
+    "bookmark_surgeon_finder": "Save the Find a Surgeon tool for easy access during research",
+    "save_procedure_pages": "Bookmark specific procedure pages you're researching for comparison",
+    "utilize_visual_aids": "Use photo galleries and animations to understand procedures better",
+    "check_statistics": "Review annual statistics for procedure popularity and trends",
+    "verify_current_info": "Check publication dates on safety information and statistics"
+  },
+  "special_sections": {
+    "for_medical_professionals": {
+      "url_path": "/for-medical-professionals",
+      "description": "Resources specifically for healthcare providers and medical professionals"
+    },
+    "patient_community_features": {
+      "ask_a_surgeon": "Submit questions directly to board-certified plastic surgeons",
+      "patient_discussions": "Community forum for sharing experiences and questions"
+    },
+    "multilingual_resources": {
+      "spanish_procedures": "Key procedures available in Spanish language",
+      "international_patients": "Resources for patients traveling for procedures"
+    }
+  }
+}

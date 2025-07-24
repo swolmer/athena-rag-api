@@ -1,0 +1,365 @@
+{
+  "title": "ASPS Complete Website Navigation Master - All Links and Sub-Links",
+  "source": "https://www.plasticsurgery.org/",
+  "description": "Comprehensive navigation guide covering ALL links and sub-links on the ASPS website",
+  "navigation_structure": {
+    "main_navigation": {
+      "procedures": {
+        "url": "/cosmetic-procedures",
+        "description": "All cosmetic and reconstructive procedures",
+        "sub_navigation": {
+          "body_procedures": {
+            "url": "/cosmetic-procedures/body",
+            "sub_links": {
+              "tummy_tuck": "/cosmetic-procedures/body/tummy-tuck",
+              "liposuction": "/cosmetic-procedures/body/liposuction",
+              "body_lift": "/cosmetic-procedures/body/body-lift",
+              "arm_lift": "/cosmetic-procedures/body/arm-lift",
+              "thigh_lift": "/cosmetic-procedures/body/thigh-lift",
+              "brazilian_butt_lift": "/cosmetic-procedures/body/brazilian-butt-lift",
+              "mommy_makeover": "/cosmetic-procedures/body/mommy-makeover"
+            }
+          },
+          "breast_procedures": {
+            "url": "/cosmetic-procedures/breast",
+            "sub_links": {
+              "breast_augmentation": "/cosmetic-procedures/breast/breast-augmentation",
+              "breast_lift": "/cosmetic-procedures/breast/breast-lift",
+              "breast_reduction": "/cosmetic-procedures/breast/breast-reduction",
+              "breast_reconstruction": "/cosmetic-procedures/breast/breast-reconstruction",
+              "breast_implant_removal": "/cosmetic-procedures/breast/breast-implant-removal",
+              "male_breast_reduction": "/cosmetic-procedures/breast/male-breast-reduction"
+            }
+          },
+          "face_procedures": {
+            "url": "/cosmetic-procedures/face",
+            "sub_links": {
+              "facelift": "/cosmetic-procedures/face/facelift",
+              "rhinoplasty": "/cosmetic-procedures/face/rhinoplasty",
+              "eyelid_surgery": "/cosmetic-procedures/face/eyelid-surgery",
+              "forehead_lift": "/cosmetic-procedures/face/forehead-lift",
+              "ear_surgery": "/cosmetic-procedures/face/ear-surgery",
+              "chin_surgery": "/cosmetic-procedures/face/chin-surgery",
+              "cheek_implants": "/cosmetic-procedures/face/cheek-implants",
+              "lip_surgery": "/cosmetic-procedures/face/lip-surgery"
+            }
+          },
+          "non_surgical": {
+            "url": "/cosmetic-procedures/non-surgical",
+            "sub_links": {
+              "botox": "/cosmetic-procedures/non-surgical/botox",
+              "dermal_fillers": "/cosmetic-procedures/non-surgical/dermal-fillers",
+              "laser_skin_resurfacing": "/cosmetic-procedures/non-surgical/laser-skin-resurfacing",
+              "chemical_peels": "/cosmetic-procedures/non-surgical/chemical-peels",
+              "fat_injections": "/cosmetic-procedures/non-surgical/fat-injections"
+            }
+          },
+          "reconstructive": {
+            "url": "/reconstructive-procedures",
+            "sub_links": {
+              "breast_reconstruction": "/reconstructive-procedures/breast-reconstruction",
+              "burn_repair": "/reconstructive-procedures/burn-repair",
+              "congenital_defects": "/reconstructive-procedures/congenital-defects",
+              "hand_surgery": "/reconstructive-procedures/hand-surgery",
+              "scar_revision": "/reconstructive-procedures/scar-revision",
+              "skin_cancer": "/reconstructive-procedures/skin-cancer",
+              "trauma_reconstruction": "/reconstructive-procedures/trauma-reconstruction"
+            }
+          }
+        }
+      },
+      "patient_safety": {
+        "url": "/patient-safety",
+        "description": "Patient safety guidelines and information",
+        "sub_navigation": {
+          "choosing_surgeon": {
+            "url": "/patient-safety/choosing-a-surgeon",
+            "sub_links": {
+              "board_certification": "/patient-safety/choosing-a-surgeon/board-certification",
+              "questions_to_ask": "/patient-safety/choosing-a-surgeon/questions-to-ask",
+              "red_flags": "/patient-safety/choosing-a-surgeon/red-flags",
+              "verify_credentials": "/patient-safety/choosing-a-surgeon/verify-credentials"
+            }
+          },
+          "breast_implant_safety": {
+            "url": "/patient-safety/breast-implant-safety",
+            "sub_links": {
+              "fda_guidance": "/patient-safety/breast-implant-safety/fda-guidance",
+              "implant_types": "/patient-safety/breast-implant-safety/implant-types",
+              "risks_complications": "/patient-safety/breast-implant-safety/risks-and-complications",
+              "bia_alcl": "/patient-safety/breast-implant-safety/bia-alcl"
+            }
+          },
+          "cosmetic_surgery_statistics": {
+            "url": "/patient-safety/cosmetic-surgery-statistics",
+            "sub_links": {
+              "annual_statistics": "/patient-safety/cosmetic-surgery-statistics/annual-statistics",
+              "trending_procedures": "/patient-safety/cosmetic-surgery-statistics/trending-procedures",
+              "demographic_data": "/patient-safety/cosmetic-surgery-statistics/demographic-data"
+            }
+          }
+        }
+      },
+      "find_surgeon": {
+        "url": "/find-a-surgeon",
+        "description": "Directory to find ASPS member surgeons",
+        "sub_navigation": {
+          "search_by_location": "/find-a-surgeon/search-by-location",
+          "search_by_procedure": "/find-a-surgeon/search-by-procedure",
+          "search_by_name": "/find-a-surgeon/search-by-name"
+        }
+      },
+      "for_surgeons": {
+        "url": "/for-surgeons",
+        "description": "Resources for plastic surgeons",
+        "sub_navigation": {
+          "education_cme": {
+            "url": "/for-surgeons/education",
+            "description": "Continuing Medical Education and Training",
+            "sub_links": {
+              "cme_courses": "/for-surgeons/education/cme-courses",
+              "webinars": "/for-surgeons/education/webinars",
+              "conferences": "/for-surgeons/education/conferences",
+              "online_learning": "/for-surgeons/education/online-learning",
+              "oral_board_review": "/for-surgeons/education/oral-board-review",
+              "written_board_review": "/for-surgeons/education/written-board-review",
+              "maintenance_of_certification": "/for-surgeons/education/maintenance-of-certification"
+            }
+          },
+          "practice_management": {
+            "url": "/for-surgeons/practice-management",
+            "sub_links": {
+              "coding_billing": "/for-surgeons/practice-management/coding-and-billing",
+              "insurance_coverage": "/for-surgeons/practice-management/insurance-coverage",
+              "patient_communication": "/for-surgeons/practice-management/patient-communication",
+              "marketing_guidelines": "/for-surgeons/practice-management/marketing-guidelines",
+              "legal_issues": "/for-surgeons/practice-management/legal-issues"
+            }
+          },
+          "research_innovation": {
+            "url": "/for-surgeons/research",
+            "sub_links": {
+              "clinical_studies": "/for-surgeons/research/clinical-studies",
+              "research_grants": "/for-surgeons/research/grants",
+              "publications": "/for-surgeons/research/publications",
+              "innovation_center": "/for-surgeons/research/innovation"
+            }
+          },
+          "advocacy": {
+            "url": "/for-surgeons/advocacy",
+            "sub_links": {
+              "legislative_updates": "/for-surgeons/advocacy/legislative-updates",
+              "regulatory_affairs": "/for-surgeons/advocacy/regulatory-affairs",
+              "grassroots_action": "/for-surgeons/advocacy/grassroots-action"
+            }
+          }
+        }
+      },
+      "news_resources": {
+        "url": "/news-and-resources",
+        "description": "Latest news, press releases, and educational resources",
+        "sub_navigation": {
+          "news": {
+            "url": "/news-and-resources/news",
+            "sub_links": {
+              "press_releases": "/news-and-resources/news/press-releases",
+              "media_coverage": "/news-and-resources/news/media-coverage",
+              "asps_statements": "/news-and-resources/news/asps-statements"
+            }
+          },
+          "educational_resources": {
+            "url": "/news-and-resources/educational-resources",
+            "description": "Educational materials for patients and surgeons",
+            "sub_links": {
+              "patient_education": "/news-and-resources/educational-resources/patient-education",
+              "procedure_videos": "/news-and-resources/educational-resources/procedure-videos",
+              "before_after_photos": "/news-and-resources/educational-resources/before-after-photos",
+              "recovery_guides": "/news-and-resources/educational-resources/recovery-guides",
+              "cost_information": "/news-and-resources/educational-resources/cost-information",
+              "consultation_guides": "/news-and-resources/educational-resources/consultation-guides",
+              "surgeon_resources": "/news-and-resources/educational-resources/surgeon-resources",
+              "patient_stories": "/news-and-resources/educational-resources/patient-stories"
+            }
+          },
+          "statistics_trends": {
+            "url": "/news-and-resources/statistics",
+            "description": "Plastic surgery statistics and trends",
+            "sub_links": {
+              "annual_statistics_report": "/news-and-resources/statistics/annual-report",
+              "procedure_statistics": "/news-and-resources/statistics/procedure-statistics",
+              "demographic_trends": "/news-and-resources/statistics/demographic-trends",
+              "international_statistics": "/news-and-resources/statistics/international-statistics",
+              "historical_data": "/news-and-resources/statistics/historical-data",
+              "statistics_infographics": "/news-and-resources/statistics/infographics"
+            }
+          },
+          "media_center": {
+            "url": "/news-and-resources/media-center",
+            "sub_links": {
+              "media_kits": "/news-and-resources/media-center/media-kits",
+              "expert_interviews": "/news-and-resources/media-center/expert-interviews",
+              "photo_gallery": "/news-and-resources/media-center/photo-gallery"
+            }
+          }
+        }
+      },
+      "about_asps": {
+        "url": "/about-asps",
+        "description": "Information about the American Society of Plastic Surgeons",
+        "sub_navigation": {
+          "organization": {
+            "url": "/about-asps/organization",
+            "sub_links": {
+              "mission_vision": "/about-asps/organization/mission-and-vision",
+              "leadership": "/about-asps/organization/leadership",
+              "board_directors": "/about-asps/organization/board-of-directors",
+              "committees": "/about-asps/organization/committees",
+              "history": "/about-asps/organization/history"
+            }
+          },
+          "membership": {
+            "url": "/about-asps/membership",
+            "sub_links": {
+              "member_benefits": "/about-asps/membership/benefits",
+              "membership_categories": "/about-asps/membership/categories",
+              "apply_membership": "/about-asps/membership/apply",
+              "member_directory": "/about-asps/membership/directory"
+            }
+          },
+          "careers": {
+            "url": "/about-asps/careers",
+            "sub_links": {
+              "job_opportunities": "/about-asps/careers/job-opportunities",
+              "fellowship_programs": "/about-asps/careers/fellowship-programs",
+              "resident_resources": "/about-asps/careers/resident-resources"
+            }
+          }
+        }
+      }
+    },
+    "specialized_navigation_paths": {
+      "oral_board_review": {
+        "primary_path": "/for-surgeons/education/oral-board-review",
+        "alternative_paths": [
+          "/for-surgeons/education",
+          "/for-surgeons/education/board-preparation",
+          "/for-surgeons/education/certification"
+        ],
+        "related_content": [
+          "/for-surgeons/education/written-board-review",
+          "/for-surgeons/education/maintenance-of-certification",
+          "/for-surgeons/education/cme-courses"
+        ],
+        "description": "Comprehensive oral board examination review materials and preparation resources for plastic surgery board certification",
+        "content_includes": [
+          "Case-based scenarios",
+          "Oral examination techniques",
+          "Board preparation courses",
+          "Practice questions",
+          "Expert faculty guidance"
+        ]
+      },
+      "educational_resources": {
+        "primary_path": "/news-and-resources/educational-resources",
+        "alternative_paths": [
+          "/for-surgeons/education",
+          "/patient-education"
+        ],
+        "sub_categories": {
+          "patient_education": {
+            "path": "/news-and-resources/educational-resources/patient-education",
+            "content": "Educational materials for patients considering plastic surgery"
+          },
+          "procedure_videos": {
+            "path": "/news-and-resources/educational-resources/procedure-videos",
+            "content": "Educational videos explaining surgical procedures"
+          },
+          "recovery_guides": {
+            "path": "/news-and-resources/educational-resources/recovery-guides",
+            "content": "Post-operative care and recovery information"
+          },
+          "consultation_guides": {
+            "path": "/news-and-resources/educational-resources/consultation-guides",
+            "content": "How to prepare for and what to expect during consultations"
+          },
+          "surgeon_resources": {
+            "path": "/news-and-resources/educational-resources/surgeon-resources",
+            "content": "Educational materials and tools for plastic surgeons"
+          }
+        }
+      },
+      "plastic_surgery_statistics": {
+        "primary_path": "/news-and-resources/statistics",
+        "alternative_paths": [
+          "/patient-safety/cosmetic-surgery-statistics",
+          "/news-and-resources/statistics/annual-report"
+        ],
+        "detailed_sections": {
+          "annual_statistics_report": {
+            "path": "/news-and-resources/statistics/annual-report",
+            "description": "Comprehensive annual report of plastic surgery statistics",
+            "content_includes": [
+              "Total number of procedures performed",
+              "Year-over-year growth trends",
+              "Most popular procedures",
+              "Demographic breakdowns",
+              "Regional statistics",
+              "Economic impact data"
+            ]
+          },
+          "procedure_statistics": {
+            "path": "/news-and-resources/statistics/procedure-statistics",
+            "description": "Detailed statistics for specific procedures",
+            "categories": [
+              "Cosmetic surgical procedures",
+              "Cosmetic minimally-invasive procedures",
+              "Reconstructive procedures",
+              "Gender-specific statistics",
+              "Age group analysis"
+            ]
+          },
+          "demographic_trends": {
+            "path": "/news-and-resources/statistics/demographic-trends",
+            "description": "Analysis of demographic trends in plastic surgery",
+            "includes": [
+              "Age distribution of patients",
+              "Gender preferences by procedure",
+              "Geographic distribution",
+              "Socioeconomic factors",
+              "Ethnic and racial demographics"
+            ]
+          },
+          "historical_data": {
+            "path": "/news-and-resources/statistics/historical-data",
+            "description": "Historical trends and data spanning multiple years",
+            "timeframes": [
+              "5-year trends",
+              "10-year analysis",
+              "Decade comparisons",
+              "Procedure evolution over time"
+            ]
+          }
+        }
+      }
+    },
+    "navigation_tips": {
+      "finding_specific_content": {
+        "oral_board_review": "Navigate to For Surgeons > Education > Oral Board Review, or search 'oral board' in the site search",
+        "educational_resources": "Go to News & Resources > Educational Resources, or use the main navigation Educational Resources section",
+        "statistics": "Access via News & Resources > Statistics, or Patient Safety > Cosmetic Surgery Statistics for safety-focused data",
+        "procedure_information": "Use Procedures menu for detailed procedure information, or Find a Surgeon for provider-specific details"
+      },
+      "alternative_search_methods": {
+        "site_search": "Use the search function with specific keywords like 'board review', 'statistics', 'education'",
+        "breadcrumb_navigation": "Follow breadcrumb trails to find related content in the same section",
+        "related_links": "Check 'Related Articles' or 'See Also' sections at the bottom of pages",
+        "footer_navigation": "Use footer links for comprehensive site map and additional navigation options"
+      }
+    },
+    "mobile_navigation": {
+      "hamburger_menu": "All main navigation accessible through mobile hamburger menu",
+      "search_function": "Mobile search available in header for quick content location",
+      "footer_links": "Complete footer navigation available on mobile for comprehensive access"
+    }
+  }
+}

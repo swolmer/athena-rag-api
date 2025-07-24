@@ -1,0 +1,181 @@
+{
+  "title": "ASPS Website Information Location Assistant",
+  "description": "Comprehensive guide to help users quickly locate specific information on plasticsurgery.org",
+  "quick_reference_guide": {
+    "most_common_requests": {
+      "find_qualified_surgeon": {
+        "direct_path": "find.plasticsurgery.org",
+        "alternative_path": "Patient Safety → Find a Plastic Surgeon",
+        "what_you_can_search": [
+          "Location (zip code, city, state, country)",
+          "Specific procedures (breast augmentation, rhinoplasty, etc.)",
+          "Board certification verification",
+          "Languages spoken",
+          "Hospital affiliations"
+        ],
+        "verification_checklist": [
+          "Board certification in plastic surgery",
+          "ASPS membership (look for ASPS member logo)",
+          "Hospital privileges at accredited facility",
+          "Specific training and experience in desired procedure"
+        ]
+      },
+      "procedure_information": {
+        "cosmetic_procedures_path": "/cosmetic-procedures",
+        "reconstructive_procedures_path": "/reconstructive-procedures", 
+        "information_included_for_each": [
+          "Detailed procedure description and techniques",
+          "Ideal candidate criteria",
+          "Realistic expectations and limitations",
+          "Step-by-step procedure process",
+          "Recovery timeline and restrictions",
+          "Potential risks and complications",
+          "Cost factors and considerations",
+          "Before and after photo examples",
+          "Questions to ask during consultation"
+        ]
+      },
+      "safety_information": {
+        "main_path": "/patient-safety",
+        "key_topics_covered": [
+          "How to choose a qualified plastic surgeon",
+          "Understanding board certification requirements",
+          "Facility accreditation importance",
+          "Risk assessment and informed consent",
+          "Warning signs of unqualified providers",
+          "Essential questions for consultations"
+        ]
+      },
+      "cost_information": {
+        "location": "Within each individual procedure page",
+        "section_name": "Cost section",
+        "factors_explained": [
+          "Surgeon professional fees",
+          "Surgical facility costs",
+          "Anesthesia fees",
+          "Medical tests and prescriptions",
+          "Recovery garments and supplies",
+          "Geographic location variations",
+          "Insurance coverage possibilities"
+        ]
+      }
+    },
+    "visual_resources_location": {
+      "before_after_photos": {
+        "main_gallery": "/photo-gallery",
+        "organization": "Browse by specific procedure type",
+        "also_found": "Within each individual procedure page"
+      },
+      "educational_videos": {
+        "main_gallery": "/video-gallery", 
+        "content_types": [
+          "Procedure explanations",
+          "Patient testimonials",
+          "Recovery guidance",
+          "Surgeon interviews",
+          "Safety education"
+        ]
+      },
+      "3d_animations": {
+        "main_section": "/3d-animations",
+        "also_found": "Within individual procedure pages",
+        "purpose": "Visual representation of surgical techniques and expected changes"
+      }
+    },
+    "safety_verification_tools": {
+      "surgeon_qualifications": {
+        "asps_member_verification": "Look for official ASPS Member Surgeon logo",
+        "board_certification_check": "American Board of Plastic Surgery verification",
+        "training_requirements": "Minimum 6 years surgical training, 3+ years plastic surgery specific"
+      },
+      "facility_safety": {
+        "accreditation_info": "Patient Safety → Accredited Facilities section",
+        "required_standards": [
+          "State licensing and accreditation",
+          "Emergency protocols and equipment",
+          "Qualified nursing staff",
+          "Anesthesia safety standards",
+          "Infection control procedures"
+        ]
+      }
+    }
+  },
+  "navigation_by_user_intent": {
+    "exploring_procedure_options": {
+      "start_here": "/cosmetic-procedures or /reconstructive-procedures",
+      "browse_method": "Use category sections (Breast, Face & Neck, Body Contouring, etc.)",
+      "comparison_strategy": "Open multiple procedure pages in tabs for side-by-side comparison"
+    },
+    "researching_specific_procedure": {
+      "direct_navigation": "/cosmetic-procedures/[procedure-name] or /reconstructive-procedures/[procedure-name]",
+      "comprehensive_info": "Each page contains 14+ detailed sections covering all aspects",
+      "related_procedures": "Cross-references to similar or complementary procedures"
+    },
+    "finding_surgeon": {
+      "primary_tool": "find.plasticsurgery.org",
+      "preparation_reading": "Patient Safety section first for education",
+      "verification_process": "Check board certification, ASPS membership, and facility accreditation"
+    },
+    "understanding_safety": {
+      "main_resource": "/patient-safety",
+      "organized_sections": [
+        "Introduction to plastic surgery safety",
+        "Choosing qualified surgeons",
+        "Professional affiliations importance", 
+        "Accredited facilities requirements",
+        "Personal health considerations",
+        "Risk assessment and informed consent",
+        "Essential consultation questions"
+      ]
+    },
+    "cost_research": {
+      "procedure_specific_costs": "Cost section within each procedure page",
+      "financing_information": "Payment options and financing plans discussed",
+      "insurance_coverage": "Reconstructive vs. cosmetic coverage differences explained"
+    }
+  },
+  "special_situations_navigation": {
+    "revision_surgeries": {
+      "information_location": "Within original procedure pages plus specific revision procedure pages",
+      "examples": "Breast implant revision, rhinoplasty revision, scar revision"
+    },
+    "combination_procedures": {
+      "mommy_makeover": "/cosmetic-procedures/mommy-makeover",
+      "multiple_procedures": "Information about combining surgeries safely"
+    },
+    "international_patients": {
+      "safety_considerations": "Patient Safety section emphasizes domestic surgeon verification",
+      "travel_planning": "Recovery considerations for traveling patients"
+    },
+    "age_specific_concerns": {
+      "teen_procedures": "Age considerations within relevant procedure pages",
+      "older_adult_considerations": "Health and safety factors for mature patients"
+    }
+  },
+  "mobile_navigation_tips": {
+    "menu_access": "Hamburger menu for main navigation on mobile devices",
+    "search_functionality": "Use search feature for quick access to specific topics",
+    "bookmark_strategy": "Save key pages (surgeon finder, safety guide, specific procedures) for easy mobile access"
+  },
+  "efficiency_tips": {
+    "research_workflow": [
+      "1. Start with Patient Safety education",
+      "2. Research specific procedures of interest", 
+      "3. Use surgeon finder tool with specific criteria",
+      "4. Review surgeon qualifications and verify credentials",
+      "5. Prepare consultation questions using provided guidelines"
+    ],
+    "information_verification": [
+      "Cross-reference information across multiple sections",
+      "Check publication dates for current information",
+      "Verify statistics with latest annual reports",
+      "Confirm safety information with most recent updates"
+    ],
+    "consultation_preparation": [
+      "Print relevant procedure information pages",
+      "Prepare questions from provided question lists",
+      "Review before/after photos for realistic expectations",
+      "Understand risks and recovery requirements thoroughly"
+    ]
+  }
+}

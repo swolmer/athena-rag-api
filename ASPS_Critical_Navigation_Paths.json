@@ -1,0 +1,175 @@
+{
+  "title": "ASPS Critical Navigation Paths - Oral Board Review, Educational Resources, Statistics",
+  "description": "Specific navigation instructions for the most commonly requested sub-links",
+  "critical_navigation_paths": {
+    "oral_board_review": {
+      "exact_location": "For Surgeons > Education & CME > Board Preparation",
+      "direct_urls": [
+        "https://www.plasticsurgery.org/for-surgeons/education/board-preparation/oral-board-review",
+        "https://www.plasticsurgery.org/for-surgeons/education/oral-board-review",
+        "https://www.plasticsurgery.org/medical-professionals/board-review"
+      ],
+      "step_by_step_navigation": [
+        "1. Click 'For Surgeons' in main navigation menu",
+        "2. Select 'Education & CME' from dropdown",
+        "3. Choose 'Board Preparation' section",
+        "4. Click 'Oral Board Review'"
+      ],
+      "alternative_routes": [
+        "Search bar: Type 'oral board review'",
+        "Footer navigation: Medical Professionals > Education > Board Review",
+        "Site map: /sitemap > Education > Board Preparation"
+      ],
+      "content_summary": "Comprehensive oral board examination preparation materials including case studies, practice scenarios, expert faculty guidance, and mock examination experiences for plastic surgery board certification",
+      "keywords_for_search": ["oral board", "board review", "examination", "certification", "board prep"]
+    },
+    "educational_resources": {
+      "primary_location": "News & Resources > Educational Resources",
+      "direct_urls": [
+        "https://www.plasticsurgery.org/news-and-resources/educational-resources",
+        "https://www.plasticsurgery.org/patient-education",
+        "https://www.plasticsurgery.org/educational-materials"
+      ],
+      "step_by_step_navigation": [
+        "1. Click 'News & Resources' in main navigation",
+        "2. Select 'Educational Resources' from dropdown menu"
+      ],
+      "sub_categories_with_paths": {
+        "patient_education_materials": {
+          "url": "/news-and-resources/educational-resources/patient-education",
+          "navigation": "News & Resources > Educational Resources > Patient Education Materials",
+          "content": "Brochures, guides, and educational content for patients considering plastic surgery"
+        },
+        "procedure_videos_animations": {
+          "url": "/news-and-resources/educational-resources/procedure-videos",
+          "navigation": "News & Resources > Educational Resources > Procedure Videos & Animations",
+          "content": "3D animations and educational videos explaining surgical procedures step-by-step"
+        },
+        "recovery_care_guides": {
+          "url": "/news-and-resources/educational-resources/recovery-guides",
+          "navigation": "News & Resources > Educational Resources > Recovery & Care Guides",
+          "content": "Post-operative care instructions, recovery timelines, and healing guidance"
+        },
+        "before_after_photo_gallery": {
+          "url": "/news-and-resources/educational-resources/before-after-photos",
+          "navigation": "News & Resources > Educational Resources > Before & After Photo Gallery",
+          "content": "Comprehensive photo gallery showing results of various plastic surgery procedures"
+        },
+        "consultation_preparation": {
+          "url": "/news-and-resources/educational-resources/consultation-guides",
+          "navigation": "News & Resources > Educational Resources > Consultation Preparation",
+          "content": "How to prepare for consultations, questions to ask, what to expect"
+        },
+        "cost_financing_information": {
+          "url": "/news-and-resources/educational-resources/cost-information",
+          "navigation": "News & Resources > Educational Resources > Cost & Financing Information",
+          "content": "Cost estimation tools, financing options, insurance coverage information"
+        }
+      },
+      "alternative_access_points": [
+        "Header shortcut: 'Patient Education' quick link",
+        "Footer: Patient Resources > Educational Materials",
+        "Procedure pages: 'Learn More' links to related educational content"
+      ],
+      "keywords_for_search": ["educational resources", "patient education", "learning materials", "guides", "brochures"]
+    },
+    "plastic_surgery_statistics": {
+      "primary_location": "News & Resources > Statistics",
+      "direct_urls": [
+        "https://www.plasticsurgery.org/news-and-resources/statistics",
+        "https://www.plasticsurgery.org/news/plastic-surgery-statistics",
+        "https://www.plasticsurgery.org/patient-safety/cosmetic-surgery-statistics"
+      ],
+      "step_by_step_navigation": [
+        "1. Click 'News & Resources' in main navigation",
+        "2. Select 'Statistics' from dropdown menu"
+      ],
+      "detailed_statistics_sections": {
+        "annual_statistics_report": {
+          "url": "/news-and-resources/statistics/annual-report",
+          "navigation": "News & Resources > Statistics > Annual Statistics Report",
+          "description": "Comprehensive yearly report of all plastic surgery procedures",
+          "data_includes": [
+            "Total number of cosmetic procedures (surgical and non-surgical)",
+            "Total number of reconstructive procedures", 
+            "Year-over-year percentage changes",
+            "Top 10 most popular cosmetic procedures",
+            "Geographic distribution by state/region",
+            "Age group breakdowns (18-29, 30-39, 40-54, 55+)",
+            "Gender distribution by procedure type",
+            "Ethnic and racial demographics",
+            "Average cost ranges by procedure",
+            "International comparison data"
+          ]
+        },
+        "trending_procedures": {
+          "url": "/news-and-resources/statistics/trending-procedures",
+          "navigation": "News & Resources > Statistics > Trending Procedures",
+          "content": "Analysis of fastest-growing and declining procedures, seasonal trends, emerging techniques"
+        },
+        "demographic_analysis": {
+          "url": "/news-and-resources/statistics/demographics",
+          "navigation": "News & Resources > Statistics > Demographic Analysis",
+          "breakdown": "Detailed demographic data by age, gender, ethnicity, income level, and geographic location"
+        },
+        "safety_outcome_statistics": {
+          "url": "/news-and-resources/statistics/safety-outcomes",
+          "navigation": "News & Resources > Statistics > Safety & Outcomes",
+          "data": "Complication rates, safety improvements, board certification impact on outcomes"
+        },
+        "international_statistics": {
+          "url": "/news-and-resources/statistics/international",
+          "navigation": "News & Resources > Statistics > International Statistics", 
+          "content": "Global plastic surgery statistics and comparisons with other countries"
+        },
+        "historical_trends": {
+          "url": "/news-and-resources/statistics/historical-trends",
+          "navigation": "News & Resources > Statistics > Historical Trends",
+          "timeframes": "5-year, 10-year, and multi-decade trend analysis"
+        }
+      },
+      "alternative_access_methods": [
+        "Patient Safety section: Statistics focused on safety data",
+        "About ASPS: Annual reports with statistical summaries", 
+        "Media Center: Statistics for press and media use",
+        "Footer navigation: Quick stats and annual report links"
+      ],
+      "keywords_for_search": ["statistics", "annual report", "trends", "demographics", "data", "numbers"]
+    }
+  },
+  "navigation_troubleshooting": {
+    "if_links_not_working": [
+      "Try using the main site search function with specific keywords",
+      "Navigate through breadcrumb trails to find parent sections",
+      "Check footer navigation for alternative paths",
+      "Use site map (/sitemap) for comprehensive navigation options"
+    ],
+    "mobile_navigation_tips": [
+      "Use hamburger menu (three lines) for full navigation access",
+      "Search function available in mobile header",
+      "Footer navigation fully accessible on mobile",
+      "Breadcrumb navigation helps track location on mobile"
+    ],
+    "search_optimization": [
+      "Use specific terms: 'oral board review' vs 'education'",
+      "Include procedure names for specific information",
+      "Try multiple keyword combinations",
+      "Use quotes for exact phrases: \"annual statistics report\""
+    ]
+  },
+  "quick_reference_guide": {
+    "most_requested_paths": {
+      "oral_board_review": "For Surgeons > Education & CME > Board Preparation > Oral Board Review",
+      "educational_resources": "News & Resources > Educational Resources",
+      "annual_statistics": "News & Resources > Statistics > Annual Statistics Report",
+      "find_surgeon": "Find a Surgeon (main navigation or direct link)",
+      "patient_safety": "Patient Safety (main navigation)",
+      "procedure_information": "Cosmetic Procedures or Reconstructive Procedures (main navigation)"
+    },
+    "emergency_navigation": {
+      "if_lost": "Use breadcrumb navigation at top of page or return to homepage",
+      "if_search_fails": "Try browsing main navigation categories systematically",
+      "if_mobile_issues": "Switch to desktop version or use footer navigation"
+    }
+  }
+}
