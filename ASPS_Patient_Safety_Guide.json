@@ -1,0 +1,75 @@
+{
+  "title": "ASPS Patient Safety and Education Guide",
+  "source": "American Society of Plastic Surgeons Patient Safety Guidelines",
+  "content": {
+    "choosing_qualified_surgeon": {
+      "board_certification_importance": "Choose a board-certified plastic surgeon who is a member of the American Society of Plastic Surgeons (ASPS) to ensure you are in the care of a qualified surgeon.",
+      "training_requirements": "ASPS Member Surgeons have more than six years of surgical training and experience, with at least three years specifically in plastic surgery. Their training and experience make them uniquely qualified to perform your cosmetic or reconstructive procedure.",
+      "verification_process": "Verify surgeon credentials through the ASPS website and state medical board databases",
+      "red_flags": "Be cautious of surgeons who are not board-certified in plastic surgery or who practice outside their area of expertise"
+    },
+    "facility_safety_standards": {
+      "accreditation_requirements": "Procedures should be performed in accredited surgical facilities with proper safety protocols and equipment",
+      "safety_protocols": "Facilities must maintain strict infection control, emergency preparedness, and patient monitoring standards",
+      "equipment_standards": "Proper surgical equipment, monitoring devices, and emergency resuscitation equipment must be available",
+      "staff_qualifications": "Qualified nursing staff and anesthesia providers must be present during procedures"
+    },
+    "informed_consent_process": {
+      "risk_disclosure": "No surgical procedure is without risk. A discussion of all potential benefits and complications should be held during consultation with a board-certified plastic surgeon.",
+      "realistic_expectations": "Surgeons must provide honest assessment of what can and cannot be achieved with surgery",
+      "alternative_options": "Discussion of non-surgical alternatives when appropriate",
+      "recovery_timeline": "Clear explanation of expected recovery process and timeline"
+    },
+    "pre_operative_considerations": {
+      "medical_history_review": "Comprehensive review of medical history, current medications, and health status",
+      "realistic_goal_setting": "Establishment of achievable goals based on individual anatomy and circumstances",
+      "preparation_instructions": "Specific pre-operative instructions including medication adjustments and lifestyle modifications",
+      "support_system": "Importance of having adequate support during recovery period"
+    },
+    "post_operative_care": {
+      "immediate_care": "Proper wound care, pain management, and activity restrictions in immediate post-operative period",
+      "warning_signs": "Recognition of signs that require immediate medical attention such as excessive bleeding, signs of infection, or breathing difficulties",
+      "follow_up_schedule": "Regular follow-up appointments to monitor healing progress and address concerns",
+      "long_term_care": "Ongoing relationship with surgeon for long-term monitoring and maintenance"
+    },
+    "common_risks_and_complications": {
+      "general_surgical_risks": [
+        "Bleeding",
+        "Infection", 
+        "Poor wound healing",
+        "Anesthesia complications",
+        "Blood clots",
+        "Scarring"
+      ],
+      "procedure_specific_risks": "Each procedure has unique risks that must be discussed during consultation",
+      "risk_mitigation": "Steps taken to minimize risks including proper technique, sterile environment, and post-operative care",
+      "complication_management": "Protocol for managing complications should they occur"
+    },
+    "questions_to_ask_surgeon": [
+      "Are you board-certified in plastic surgery?",
+      "How many times have you performed this procedure?",
+      "What are the risks and complications of this procedure?",
+      "What type of anesthesia will be used?",
+      "Where will the surgery be performed?",
+      "What will my recovery be like?",
+      "What are my options if I'm not satisfied with the results?",
+      "Can I see before and after photos of your work?",
+      "What are the total costs involved?"
+    ],
+    "cost_considerations": {
+      "surgical_fees": "Surgeon's professional fees for performing the procedure",
+      "facility_costs": "Operating room and facility fees",
+      "anesthesia_fees": "Anesthesiologist or nurse anesthetist fees", 
+      "additional_costs": "Prescription medications, medical tests, compression garments, and follow-up care",
+      "insurance_coverage": "Most cosmetic procedures are not covered by insurance, but reconstructive procedures may be covered",
+      "financing_options": "Many practices offer financing plans to help manage costs"
+    },
+    "recovery_expectations": {
+      "timeline_variations": "Recovery time varies significantly based on procedure type, individual healing, and adherence to post-operative instructions",
+      "activity_restrictions": "Gradual return to normal activities with specific restrictions based on procedure",
+      "pain_management": "Appropriate pain medication and comfort measures during recovery",
+      "emotional_considerations": "Normal emotional fluctuations during recovery period and importance of patience with results",
+      "final_results": "Understanding that final results may not be apparent for weeks to months depending on procedure"
+    }
+  }
+}

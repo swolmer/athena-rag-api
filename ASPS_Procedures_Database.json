@@ -1,0 +1,147 @@
+{
+  "title": "ASPS Comprehensive Procedures Database",
+  "categories": {
+    "breast_procedures": {
+      "breast_augmentation": {
+        "medical_name": "Augmentation Mammaplasty",
+        "common_names": ["breast aug", "boob job"],
+        "type": "cosmetic",
+        "description": "Enhancement of breast size using implants or fat transfer",
+        "candidates": "Women who want to increase breast size, restore volume, or improve symmetry",
+        "implant_types": ["saline", "silicone gel", "gummy bear"],
+        "incision_options": ["inframammary", "periareolar", "transaxillary"],
+        "recovery_time": "1-2 weeks for basic activities, 4-6 weeks for full activity"
+      },
+      "breast_reduction": {
+        "medical_name": "Reduction Mammaplasty", 
+        "type": "reconstructive/cosmetic",
+        "description": "Removal of excess breast tissue to reduce breast size",
+        "medical_benefits": "Relief from back pain, neck pain, and skin irritation",
+        "candidates": "Women with overly large breasts causing physical discomfort"
+      },
+      "breast_lift": {
+        "medical_name": "Mastopexy",
+        "type": "cosmetic",
+        "description": "Reshaping and lifting of sagging breasts",
+        "often_combined_with": "breast augmentation for volume and lift"
+      },
+      "breast_reconstruction": {
+        "type": "reconstructive",
+        "description": "Restoration of breast appearance after mastectomy",
+        "timing_options": ["immediate", "delayed"],
+        "reconstruction_types": ["implant-based", "autologous tissue"]
+      }
+    },
+    "facial_procedures": {
+      "rhinoplasty": {
+        "medical_name": "Rhinoplasty",
+        "common_names": ["nose job", "nose reshaping"],
+        "type": "cosmetic/functional",
+        "description": "Reshaping of the nose for aesthetic or functional improvement",
+        "aesthetic_goals": ["size reduction", "tip refinement", "bridge smoothing", "nostril reshaping"],
+        "functional_goals": ["breathing improvement", "deviated septum correction"],
+        "recovery_highlights": "Splint for 1 week, swelling subsides over months"
+      },
+      "facelift": {
+        "medical_name": "Rhytidectomy",
+        "type": "cosmetic",
+        "description": "Surgical improvement of facial aging signs",
+        "addresses": ["jowls", "neck sagging", "deep nasolabial folds"],
+        "often_combined_with": ["brow lift", "eyelid surgery", "fat grafting"]
+      },
+      "eyelid_surgery": {
+        "medical_name": "Blepharoplasty",
+        "type": "cosmetic/functional",
+        "description": "Correction of drooping eyelids and removal of excess skin",
+        "upper_vs_lower": "Can address upper lids, lower lids, or both",
+        "functional_benefits": "Improved vision when upper lids obstruct sight"
+      },
+      "brow_lift": {
+        "medical_name": "Forehead Lift",
+        "type": "cosmetic",
+        "description": "Elevation of drooping eyebrows and smoothing of forehead wrinkles",
+        "techniques": ["endoscopic", "coronal", "temporal"]
+      }
+    },
+    "body_contouring": {
+      "liposuction": {
+        "medical_name": "Lipoplasty",
+        "common_names": ["lipo"],
+        "type": "cosmetic",
+        "description": "Removal of excess fat deposits through suction",
+        "ideal_candidates": "Normal weight individuals with localized fat deposits",
+        "not_suitable_for": "obesity treatment, cellulite removal",
+        "areas_treated": ["abdomen", "thighs", "arms", "back", "neck"]
+      },
+      "tummy_tuck": {
+        "medical_name": "Abdominoplasty", 
+        "type": "cosmetic",
+        "description": "Removal of excess abdominal skin and tightening of muscles",
+        "ideal_candidates": "Post-pregnancy or post-weight loss patients with excess skin",
+        "variations": ["full abdominoplasty", "mini abdominoplasty"]
+      },
+      "body_lift": {
+        "type": "cosmetic",
+        "description": "Comprehensive body contouring after massive weight loss",
+        "addresses": "Excess skin on multiple body areas",
+        "often_staged": "Multiple procedures over time for safety"
+      }
+    },
+    "minimally_invasive": {
+      "botulinum_toxin": {
+        "brand_names": ["Botox", "Dysport", "Xeomin", "Jeuveau", "Daxxify"],
+        "type": "cosmetic",
+        "description": "Injectable neurotoxin for wrinkle reduction",
+        "treatment_areas": ["forehead", "crow's feet", "frown lines"],
+        "duration": "3-6 months typically"
+      },
+      "dermal_fillers": {
+        "type": "cosmetic", 
+        "description": "Injectable materials to restore volume and smooth wrinkles",
+        "filler_types": ["hyaluronic acid", "calcium hydroxylapatite", "poly-L-lactic acid"],
+        "treatment_areas": ["lips", "cheeks", "nasolabial folds", "under eyes"]
+      },
+      "chemical_peels": {
+        "type": "cosmetic",
+        "description": "Chemical solution applied to improve skin texture and appearance",
+        "depths": ["light", "medium", "deep"],
+        "skin_concerns": ["sun damage", "acne scars", "fine lines"]
+      }
+    },
+    "reconstructive_procedures": {
+      "cleft_repair": {
+        "medical_name": "Cleft Lip and Palate Repair",
+        "type": "reconstructive",
+        "description": "Correction of congenital facial deformities",
+        "timing": "Multiple staged procedures from infancy through adolescence",
+        "team_approach": "Coordinated care with multiple specialists"
+      },
+      "hand_surgery": {
+        "type": "reconstructive",
+        "description": "Treatment of hand and wrist conditions",
+        "conditions": ["carpal tunnel", "trigger finger", "arthritis", "trauma"],
+        "goals": "Restore function and relieve pain"
+      },
+      "scar_revision": {
+        "type": "reconstructive",
+        "description": "Improvement of scar appearance and function",
+        "techniques": ["surgical excision", "laser therapy", "dermabrasion"],
+        "realistic_expectations": "Improvement, not elimination of scars"
+      },
+      "skin_cancer_reconstruction": {
+        "type": "reconstructive", 
+        "description": "Restoration of appearance and function after skin cancer removal",
+        "common_areas": ["face", "nose", "ears", "scalp"],
+        "techniques": ["skin grafts", "flaps", "tissue expansion"]
+      }
+    }
+  },
+  "general_principles": {
+    "consultation_process": "Thorough evaluation, goal discussion, risk assessment, and treatment planning",
+    "safety_first": "Patient safety is the primary concern in all procedures",
+    "realistic_expectations": "Honest discussion of achievable outcomes",
+    "individualized_care": "Treatment plans tailored to each patient's unique needs and anatomy",
+    "quality_results": "Focus on natural-looking results and patient satisfaction",
+    "ongoing_relationship": "Long-term care and follow-up with patients"
+  }
+}

@@ -1,0 +1,224 @@
+{
+  "title": "Complete ASPS Website Navigation and Content Location Guide",
+  "source": "https://www.plasticsurgery.org/",
+  "description": "Comprehensive guide to locate ANY information on the American Society of Plastic Surgeons website",
+  "main_navigation_structure": {
+    "header_navigation": {
+      "cosmetic_procedures": {
+        "url": "/cosmetic-procedures",
+        "subcategories": {
+          "breast": {
+            "breast_augmentation": "/cosmetic-procedures/breast-augmentation",
+            "breast_lift": "/cosmetic-procedures/breast-lift",
+            "breast_reduction": "/cosmetic-procedures/breast-reduction",
+            "breast_implant_removal": "/cosmetic-procedures/breast-implant-removal",
+            "breast_implant_revision": "/cosmetic-procedures/breast-implant-revision",
+            "gynecomastia_surgery": "/cosmetic-procedures/gynecomastia-surgery"
+          },
+          "face_and_neck": {
+            "rhinoplasty": "/cosmetic-procedures/rhinoplasty",
+            "facelift": "/cosmetic-procedures/facelift",
+            "eyelid_surgery": "/cosmetic-procedures/eyelid-surgery",
+            "brow_lift": "/cosmetic-procedures/brow-lift",
+            "chin_surgery": "/cosmetic-procedures/chin-surgery",
+            "cheek_augmentation": "/cosmetic-procedures/cheek-augmentation",
+            "ear_surgery": "/cosmetic-procedures/ear-surgery",
+            "neck_lift": "/cosmetic-procedures/neck-lift"
+          },
+          "body_contouring": {
+            "liposuction": "/cosmetic-procedures/liposuction",
+            "tummy_tuck": "/cosmetic-procedures/tummy-tuck",
+            "body_lift": "/cosmetic-procedures/body-lift",
+            "arm_lift": "/cosmetic-procedures/arm-lift",
+            "thigh_lift": "/cosmetic-procedures/thigh-lift",
+            "buttock_enhancement": "/cosmetic-procedures/buttock-enhancement",
+            "mommy_makeover": "/cosmetic-procedures/mommy-makeover"
+          },
+          "minimally_invasive": {
+            "botox": "/cosmetic-procedures/botox",
+            "dermal_fillers": "/cosmetic-procedures/dermal-fillers",
+            "chemical_peel": "/cosmetic-procedures/chemical-peel",
+            "laser_resurfacing": "/cosmetic-procedures/laser-resurfacing",
+            "microdermabrasion": "/cosmetic-procedures/microdermabrasion"
+          },
+          "fat_reduction": {
+            "nonsurgical_fat_reduction": "/cosmetic-procedures/nonsurgical-fat-reduction",
+            "coolsculpting": "/cosmetic-procedures/coolsculpting"
+          }
+        }
+      },
+      "reconstructive_procedures": {
+        "url": "/reconstructive-procedures",
+        "subcategories": {
+          "breast_reconstruction": "/reconstructive-procedures/breast-reconstruction",
+          "congenital_conditions": {
+            "cleft_lip_palate": "/reconstructive-procedures/cleft-lip-palate",
+            "craniosynostosis": "/reconstructive-procedures/craniosynostosis"
+          },
+          "hand_surgery": "/reconstructive-procedures/hand-surgery",
+          "skin_cancer_reconstruction": "/reconstructive-procedures/skin-cancer-reconstruction",
+          "scar_revision": "/reconstructive-procedures/scar-revision",
+          "burn_reconstruction": "/reconstructive-procedures/burn-reconstruction",
+          "lymphedema_treatment": "/reconstructive-procedures/lymphedema-treatment"
+        }
+      },
+      "patient_safety": {
+        "url": "/patient-safety",
+        "subsections": {
+          "choose_plastic_surgeon": "/patient-safety/choose-plastic-surgeon",
+          "questions_to_ask": "/patient-safety/questions-to-ask",
+          "accredited_facilities": "/patient-safety/accredited-facilities",
+          "breast_implant_safety": {
+            "main": "/patient-safety/breast-implant-safety",
+            "bia_alcl": "/patient-safety/breast-implant-safety/bia-alcl",
+            "breast_implant_illness": "/patient-safety/breast-implant-safety/breast-implant-illness",
+            "fda_updates": "/patient-safety/breast-implant-safety/fda-updates",
+            "rupture_detection": "/patient-safety/breast-implant-safety/rupture-detection"
+          },
+          "health_safety": "/patient-safety/health-safety",
+          "professional_affiliation": "/patient-safety/professional-affiliation"
+        }
+      }
+    },
+    "footer_navigation": {
+      "about_asps": {
+        "url": "/about-asps",
+        "subsections": {
+          "mission_vision": "/about-asps/mission-vision",
+          "leadership": "/about-asps/leadership",
+          "history": "/about-asps/history",
+          "annual_reports": "/about-asps/annual-reports"
+        }
+      },
+      "for_medical_professionals": {
+        "url": "/for-medical-professionals",
+        "subsections": {
+          "education_meetings": "/for-medical-professionals/education-meetings",
+          "practice_resources": "/for-medical-professionals/practice-resources",
+          "research": "/for-medical-professionals/research"
+        }
+      },
+      "news_advocacy": {
+        "url": "/news-advocacy",
+        "subsections": {
+          "press_releases": "/news-advocacy/press-releases",
+          "position_statements": "/news-advocacy/position-statements",
+          "advocacy_efforts": "/news-advocacy/advocacy-efforts"
+        }
+      }
+    },
+    "utility_pages": {
+      "find_surgeon": "https://find.plasticsurgery.org",
+      "photo_gallery": "/photo-gallery",
+      "video_gallery": "/video-gallery",
+      "3d_animations": "/3d-animations",
+      "statistics": "/news/plastic-surgery-statistics",
+      "glossary": "/glossary",
+      "contact": "/contact",
+      "sitemap": "/sitemap"
+    }
+  },
+  "search_and_location_strategies": {
+    "by_procedure_type": {
+      "cosmetic": "Navigate to Cosmetic Procedures section, then select body area category",
+      "reconstructive": "Navigate to Reconstructive Procedures section, browse by medical condition"
+    },
+    "by_safety_concern": {
+      "general_safety": "Patient Safety main section",
+      "implant_safety": "Patient Safety → Breast Implant Safety",
+      "surgeon_qualifications": "Patient Safety → Choose a Plastic Surgeon",
+      "facility_standards": "Patient Safety → Accredited Facilities"
+    },
+    "by_information_type": {
+      "procedure_details": "Individual procedure pages contain 14+ detailed sections",
+      "before_after_photos": "Photo Gallery or individual procedure pages",
+      "cost_information": "Cost section within each procedure page",
+      "recovery_info": "Recovery section within each procedure page",
+      "risks_complications": "Risks section within each procedure page"
+    },
+    "by_user_role": {
+      "patients": "Main navigation focuses on procedures and safety",
+      "medical_professionals": "For Medical Professionals section in footer",
+      "media": "News & Advocacy section for press resources"
+    }
+  },
+  "specific_content_locations": {
+    "statistics_and_data": {
+      "annual_statistics": "/news/plastic-surgery-statistics",
+      "procedure_trends": "Within annual statistics report",
+      "demographic_data": "Statistics section includes age, gender, geographic data"
+    },
+    "safety_information": {
+      "bia_alcl": "/patient-safety/breast-implant-safety/bia-alcl",
+      "breast_implant_illness": "/patient-safety/breast-implant-safety/breast-implant-illness",
+      "implant_rupture": "/patient-safety/breast-implant-safety/rupture-detection",
+      "surgeon_verification": "/patient-safety/choose-plastic-surgeon",
+      "facility_accreditation": "/patient-safety/accredited-facilities"
+    },
+    "educational_resources": {
+      "procedure_videos": "/video-gallery",
+      "3d_procedure_animations": "/3d-animations",
+      "patient_testimonials": "Within individual procedure pages and video gallery",
+      "medical_terminology": "/glossary"
+    },
+    "professional_resources": {
+      "cme_education": "/for-medical-professionals/education-meetings",
+      "practice_management": "/for-medical-professionals/practice-resources",
+      "research_publications": "/for-medical-professionals/research"
+    }
+  },
+  "navigation_by_common_questions": {
+    "where_find_bia_alcl": {
+      "direct_path": "/patient-safety/breast-implant-safety/bia-alcl",
+      "navigation_steps": "Patient Safety → Breast Implant Safety → BIA-ALCL",
+      "search_terms": "BIA-ALCL, breast implant lymphoma, anaplastic large cell lymphoma"
+    },
+    "where_find_surgeon": {
+      "direct_path": "https://find.plasticsurgery.org",
+      "navigation_steps": "Use Find a Surgeon tool in header navigation",
+      "verification_info": "Patient Safety → Choose a Plastic Surgeon"
+    },
+    "where_find_procedure_costs": {
+      "location": "Cost section within each individual procedure page",
+      "navigation_steps": "Cosmetic/Reconstructive Procedures → Select procedure → Cost section"
+    },
+    "where_find_before_after_photos": {
+      "main_gallery": "/photo-gallery",
+      "procedure_specific": "Within individual procedure pages",
+      "organization": "Organized by procedure type and body area"
+    },
+    "where_find_recovery_information": {
+      "location": "Recovery section within each procedure page",
+      "general_guidelines": "Patient Safety section includes general recovery principles"
+    },
+    "where_find_risks_complications": {
+      "procedure_specific": "Risks section within each procedure page",
+      "general_safety": "Patient Safety section covers general surgical risks"
+    },
+    "where_find_statistics": {
+      "annual_report": "/news/plastic-surgery-statistics",
+      "procedure_trends": "Within statistics report, organized by procedure type",
+      "demographic_data": "Age, gender, geographic breakdowns included"
+    },
+    "where_find_board_certification": {
+      "verification_process": "/patient-safety/choose-plastic-surgeon",
+      "surgeon_finder": "https://find.plasticsurgery.org includes certification verification"
+    }
+  },
+  "mobile_navigation": {
+    "hamburger_menu": "Three-line menu icon provides access to all main sections",
+    "search_function": "Search icon in header for keyword searches",
+    "quick_links": "Find a Surgeon and Patient Safety prominently featured"
+  },
+  "search_functionality": {
+    "keyword_search": "Search box in header accepts procedure names, medical terms, topics",
+    "suggested_searches": "Auto-complete provides suggestions as you type",
+    "search_results": "Results organized by content type (procedures, safety, educational)"
+  },
+  "accessibility_features": {
+    "screen_reader_support": "All content accessible via screen readers",
+    "keyboard_navigation": "Full site navigable via keyboard",
+    "alt_text": "Images include descriptive alt text",
+    "high_contrast": "Text and background provide sufficient contrast"
+  }
+}

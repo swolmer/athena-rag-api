@@ -1,0 +1,247 @@
+{
+  "title": "ASPS Detailed Sub-Link Navigation Guide",
+  "description": "Comprehensive guide for navigating to specific sub-pages and resources on plasticsurgery.org",
+  "target_areas": {
+    "oral_board_review": {
+      "location": "For Surgeons Section",
+      "navigation_paths": [
+        {
+          "primary_path": "Main Menu > For Surgeons > Education & CME > Board Preparation > Oral Board Review",
+          "url": "/for-surgeons/education/board-preparation/oral-board-review",
+          "description": "Direct path to oral board review resources"
+        },
+        {
+          "alternative_path_1": "Main Menu > For Surgeons > Education & CME > Oral Board Review",
+          "url": "/for-surgeons/education/oral-board-review",
+          "description": "Shorter navigation path"
+        },
+        {
+          "alternative_path_2": "Footer > Medical Professionals > Education > Board Review",
+          "url": "/medical-professionals/education/board-review",
+          "description": "Footer navigation option"
+        }
+      ],
+      "content_description": "Comprehensive oral board examination preparation including case studies, mock examinations, and review materials",
+      "related_resources": [
+        "/for-surgeons/education/written-board-review",
+        "/for-surgeons/education/maintenance-of-certification",
+        "/for-surgeons/education/continuing-education"
+      ]
+    },
+    "educational_resources": {
+      "location": "Multiple Sections",
+      "navigation_paths": [
+        {
+          "primary_path": "Main Menu > News & Resources > Educational Resources",
+          "url": "/news-and-resources/educational-resources",
+          "description": "Main educational resources hub"
+        },
+        {
+          "patient_education_path": "Main Menu > Patient Education",
+          "url": "/patient-education",
+          "description": "Patient-focused educational materials"
+        },
+        {
+          "surgeon_education_path": "Main Menu > For Surgeons > Education & CME",
+          "url": "/for-surgeons/education",
+          "description": "Surgeon-focused educational resources"
+        }
+      ],
+      "sub_categories": {
+        "patient_materials": {
+          "url": "/educational-resources/patient-materials",
+          "content": "Brochures, guides, and educational content for patients"
+        },
+        "procedure_animations": {
+          "url": "/educational-resources/procedure-animations",
+          "content": "3D animations and videos explaining surgical procedures"
+        },
+        "recovery_guides": {
+          "url": "/educational-resources/recovery-guides",
+          "content": "Post-operative care instructions and recovery timelines"
+        },
+        "before_after_gallery": {
+          "url": "/educational-resources/before-after-gallery",
+          "content": "Before and after photos for various procedures"
+        },
+        "cost_estimator": {
+          "url": "/educational-resources/cost-estimator",
+          "content": "Cost estimation tools for various procedures"
+        }
+      }
+    },
+    "plastic_surgery_statistics": {
+      "location": "News & Resources Section",
+      "navigation_paths": [
+        {
+          "primary_path": "Main Menu > News & Resources > Statistics",
+          "url": "/news-and-resources/statistics",
+          "description": "Main statistics portal"
+        },
+        {
+          "alternative_path_1": "Main Menu > Patient Safety > Cosmetic Surgery Statistics",
+          "url": "/patient-safety/cosmetic-surgery-statistics",
+          "description": "Safety-focused statistics"
+        },
+        {
+          "footer_path": "Footer > About ASPS > Statistics & Trends",
+          "url": "/about-asps/statistics-trends",
+          "description": "Footer navigation to statistics"
+        }
+      ],
+      "detailed_sections": {
+        "annual_report": {
+          "url": "/statistics/annual-plastic-surgery-statistics",
+          "description": "Comprehensive annual statistical report",
+          "content_includes": [
+            "Total procedures performed by category",
+            "Year-over-year growth rates",
+            "Geographic distribution of procedures",
+            "Demographic breakdowns by age, gender, ethnicity",
+            "Top 10 most popular procedures",
+            "Economic impact data",
+            "International comparisons"
+          ]
+        },
+        "procedure_trends": {
+          "url": "/statistics/procedure-trends",
+          "description": "Trending procedures and emerging techniques",
+          "includes": [
+            "Fastest growing procedures",
+            "Declining procedure trends",
+            "Seasonal variations",
+            "Regional preferences"
+          ]
+        },
+        "demographic_analysis": {
+          "url": "/statistics/demographic-analysis",
+          "description": "Patient demographic analysis",
+          "breakdown": [
+            "Age group statistics (18-29, 30-39, 40-54, 55+)",
+            "Gender distribution by procedure type",
+            "Ethnic and racial demographics",
+            "Income level correlations",
+            "Geographic distribution patterns"
+          ]
+        },
+        "safety_statistics": {
+          "url": "/statistics/safety-statistics",
+          "description": "Safety and complication rate statistics",
+          "data_includes": [
+            "Complication rates by procedure",
+            "Safety improvement trends",
+            "Facility accreditation impact",
+            "Board certification correlation with outcomes"
+          ]
+        }
+      }
+    },
+    "research_publications": {
+      "location": "For Surgeons Section",
+      "navigation_paths": [
+        {
+          "primary_path": "Main Menu > For Surgeons > Research > Publications",
+          "url": "/for-surgeons/research/publications",
+          "description": "Research publications and studies"
+        },
+        {
+          "journal_path": "Main Menu > For Surgeons > Plastic and Reconstructive Surgery Journal",
+          "url": "/for-surgeons/prs-journal",
+          "description": "Official ASPS journal"
+        }
+      ]
+    },
+    "practice_management": {
+      "location": "For Surgeons Section",
+      "navigation_paths": [
+        {
+          "primary_path": "Main Menu > For Surgeons > Practice Management",
+          "url": "/for-surgeons/practice-management",
+          "description": "Practice management resources"
+        }
+      ],
+      "sub_sections": {
+        "coding_billing": "/for-surgeons/practice-management/coding-billing",
+        "insurance_coverage": "/for-surgeons/practice-management/insurance-coverage",
+        "patient_financing": "/for-surgeons/practice-management/patient-financing",
+        "marketing_guidelines": "/for-surgeons/practice-management/marketing-guidelines",
+        "legal_considerations": "/for-surgeons/practice-management/legal-considerations"
+      }
+    },
+    "advocacy_legislative": {
+      "location": "News & Advocacy Section",
+      "navigation_paths": [
+        {
+          "primary_path": "Main Menu > News & Advocacy > Legislative Updates",
+          "url": "/news-advocacy/legislative-updates",
+          "description": "Current legislative issues affecting plastic surgery"
+        },
+        {
+          "advocacy_path": "Main Menu > For Surgeons > Advocacy",
+          "url": "/for-surgeons/advocacy",
+          "description": "Surgeon advocacy resources"
+        }
+      ]
+    }
+  },
+  "quick_navigation_tips": {
+    "using_search": {
+      "location": "Top right corner of every page",
+      "tips": [
+        "Use specific keywords like 'oral board', 'statistics', 'education'",
+        "Try procedure names for direct navigation",
+        "Search by surgeon name or location for Find a Surgeon"
+      ]
+    },
+    "mobile_navigation": {
+      "hamburger_menu": "Access all main sections through mobile hamburger menu",
+      "search_mobile": "Search icon in mobile header for quick content location",
+      "footer_mobile": "Full footer navigation available on mobile devices"
+    },
+    "breadcrumb_navigation": {
+      "description": "Use breadcrumb trails at the top of pages to understand current location and navigate to parent sections",
+      "example": "Home > For Surgeons > Education > Oral Board Review"
+    }
+  },
+  "content_location_by_user_type": {
+    "patients": {
+      "primary_sections": [
+        "/cosmetic-procedures",
+        "/reconstructive-procedures", 
+        "/patient-safety",
+        "/find-a-surgeon",
+        "/patient-education"
+      ],
+      "key_resources": [
+        "/patient-safety/choose-plastic-surgeon",
+        "/educational-resources/cost-estimator",
+        "/educational-resources/recovery-guides"
+      ]
+    },
+    "surgeons": {
+      "primary_sections": [
+        "/for-surgeons",
+        "/for-surgeons/education",
+        "/for-surgeons/practice-management",
+        "/for-surgeons/research"
+      ],
+      "key_resources": [
+        "/for-surgeons/education/oral-board-review",
+        "/for-surgeons/practice-management/coding-billing",
+        "/for-surgeons/research/publications"
+      ]
+    },
+    "media_researchers": {
+      "primary_sections": [
+        "/news-and-resources/statistics",
+        "/news-and-resources/media-center",
+        "/news-advocacy/press-releases"
+      ],
+      "key_resources": [
+        "/statistics/annual-plastic-surgery-statistics",
+        "/news-and-resources/media-center/expert-interviews",
+        "/about-asps/leadership"
+      ]
+    }
+  }
+}

@@ -1,0 +1,125 @@
+{
+  "title": "American Society of Plastic Surgeons - Comprehensive Medical Reference",
+  "source": "https://www.plasticsurgery.org/",
+  "organization": "American Society of Plastic Surgeons (ASPS)",
+  "established": "1931",
+  "description": "The largest plastic surgery specialty organization in the world",
+  "content": {
+    "patient_safety_standards": {
+      "board_certification": "ASPS Member Surgeons are board-certified plastic surgeons with more than six years of surgical training and experience, with at least three years specifically in plastic surgery. Their training and experience make them uniquely qualified to perform cosmetic or reconstructive procedures.",
+      "facility_requirements": "Procedures should be performed in accredited surgical facilities with proper safety protocols and equipment.",
+      "risk_disclosure": "No surgical procedure is without risk. A discussion of all potential benefits and complications should be held during consultation with a board-certified plastic surgeon.",
+      "patient_education": "Becoming an educated consumer is one of the first steps you can take towards a successful procedure."
+    },
+    "cosmetic_procedures_detailed": {
+      "breast_augmentation": {
+        "medical_terminology": "Augmentation Mammaplasty",
+        "patient_terminology": ["breast aug", "boob job"],
+        "procedure_overview": "Breast augmentation involves using breast implants or fat transfer to increase the size of your breasts. This procedure can also restore breast volume lost after weight reduction or pregnancy, achieve a more rounded breast shape or improve natural breast size asymmetry.",
+        "clinical_benefits": [
+          "Increase fullness and projection of your breasts",
+          "Improve balance of breast and hip contours",
+          "Enhance your self-image and self-confidence",
+          "Restore breast volume after pregnancy or weight loss",
+          "Correct breast asymmetry"
+        ],
+        "limitations": "Breast augmentation does not correct severely drooping breasts. A breast lift may be required along with a breast augmentation for sagging breasts to look fuller and lifted. Breast lifting can often be done at the same time as your augmentation or may require a separate operation.",
+        "reconstructive_applications": "Breast implants may also be used for breast reconstruction after mastectomy or injury.",
+        "implant_options": "Patients can choose between saline and silicone gel implants, each with specific benefits and considerations.",
+        "consultation_considerations": "Plastic surgeon will assist you in making decisions about implant type, size, and placement to achieve desired results."
+      },
+      "liposuction": {
+        "medical_terminology": "Lipoplasty",
+        "patient_terminology": ["lipo"],
+        "procedure_overview": "Liposuction is a surgical procedure that involves the removal of excess fat from specific areas of the body. The procedure is typically used to contour the abdomen, hips, thighs, buttocks and other areas where diet and exercise alone have not been successful.",
+        "treatment_areas": [
+          "Abdomen and waist",
+          "Back",
+          "Calves and ankles", 
+          "Chest area",
+          "Face, cheeks, chin and neck",
+          "Hips and buttocks",
+          "Inner knee",
+          "Thighs",
+          "Upper arms"
+        ],
+        "ideal_candidates": "Liposuction works for people of normal weight who have some extra fat. If you have firm, elastic skin, you will have better results. Skin that is soft and thin from stretch marks, weight loss or natural aging will not reshape as well.",
+        "limitations": "Liposuction is not a treatment for obesity or a substitute for proper diet and exercise. It is also not an effective treatment for cellulite. You may need more surgeries to remove and tighten extra skin.",
+        "combination_procedures": "Liposuction can be performed alone or along with other plastic surgery procedures, such as a facelift, breast reduction or a tummy tuck.",
+        "advanced_techniques": "Laser-assisted and ultrasound-assisted liposuction techniques are available for enhanced results in specific cases."
+      },
+      "rhinoplasty": {
+        "medical_terminology": "Rhinoplasty",
+        "patient_terminology": ["nose job", "nose reshaping"],
+        "procedure_overview": "Rhinoplasty enhances facial harmony and the proportions of your nose. It can also correct impaired breathing caused by structural defects in the nose.",
+        "aesthetic_corrections": [
+          "Nose size in relation to facial balance",
+          "Nose width at the bridge or in the size and position of the nostrils",
+          "Nose profile with visible humps or depressions on the bridge",
+          "Nasal tip that is enlarged or bulbous, drooping, upturned or hooked", 
+          "Nostrils that are large, wide or upturned",
+          "Nasal asymmetry"
+        ],
+        "functional_corrections": "Nose surgery that's done to improve an obstructed airway requires careful evaluation of the nasal structure as it relates to airflow and breathing. Correction of a deviated septum, one of the most common causes of breathing impairment, is achieved by adjusting the nasal structure to produce better alignment.",
+        "realistic_expectations": "If you desire a more symmetrical nose, keep in mind that everyone's face is asymmetric to some degree. Results may not be completely symmetric, although the goal is to create facial balance and correct proportion.",
+        "breathing_improvements": "Rhinoplasty can address structural issues that impair breathing while simultaneously improving aesthetic appearance."
+      },
+      "facelift": {
+        "medical_terminology": "Rhytidectomy",
+        "procedure_overview": "A facelift is a surgical procedure that improves visible signs of aging in the face and neck.",
+        "aging_signs_addressed": [
+          "Relaxation of the skin of the face causing sagging",
+          "Deepening of the fold lines between the nose and corner of the mouth",
+          "Fat that has fallen or has disappeared",
+          "Jowls developing in the cheeks and jaw",
+          "Loose skin and excess fat of the neck that can appear as a double chin or 'turkey neck'"
+        ],
+        "aging_factors": "The loss of youthful contours in the face can be due to variety of factors, including thinning of the skin, loss of facial fat, gravity, sun damage, smoking, as well as heredity and stress.",
+        "complementary_procedures": "Other procedures that might be performed in conjunction with a facelift are brow lift and eyelid surgery to rejuvenate aging eyes. Fat transfer or fillers may be suggested to replace the lost fatty volume. Skin treatments such as IPL, dermabrasion, peels or laser may be offered to improve the quality and texture of the skin.",
+        "realistic_expectations": "As a restorative surgery, a facelift does not change your fundamental appearance and cannot stop the aging process. A facelift can only be performed surgically; minimally invasive rejuvenation treatments cannot achieve the same results, but may help delay the time at which a facelift becomes appropriate and complement the results of surgery."
+      }
+    },
+    "reconstructive_procedures_detailed": {
+      "breast_reconstruction": {
+        "medical_overview": "Post-mastectomy breast reconstruction options to restore breast appearance and symmetry",
+        "timing_options": "Can be performed immediately during mastectomy or delayed to a later time",
+        "reconstruction_methods": "Various techniques including implant-based reconstruction and autologous tissue reconstruction"
+      },
+      "cleft_repair": {
+        "medical_terminology": "Cleft Lip and Cleft Palate Repair", 
+        "purpose": "Correcting abnormal development of facial structures present from birth",
+        "timing": "Often performed in stages during infancy and childhood for optimal results",
+        "functional_benefits": "Improves feeding, speech, hearing, and facial appearance"
+      },
+      "hand_surgery": {
+        "purpose": "Improve strength, function and flexibility of the hand and wrist",
+        "conditions_treated": "Carpal tunnel syndrome, trigger finger, arthritis, fractures, tendon injuries",
+        "functional_restoration": "Focus on restoring maximum function while improving appearance when possible"
+      },
+      "scar_revision": {
+        "purpose": "Minimize appearance of scars and improve skin texture and appearance",
+        "techniques": "Various methods including surgical excision, dermabrasion, laser therapy, and steroid injections",
+        "realistic_expectations": "Complete elimination of scars is not possible, but significant improvement in appearance can be achieved"
+      }
+    },
+    "consultation_process": {
+      "initial_evaluation": "Comprehensive assessment of patient goals, medical history, and physical examination",
+      "treatment_planning": "Development of customized surgical plan based on individual anatomy and desired outcomes",
+      "risk_discussion": "Thorough review of potential complications, recovery process, and realistic expectations",
+      "informed_consent": "Detailed explanation of procedure, alternatives, risks, and expected outcomes before surgery",
+      "follow_up_care": "Post-operative monitoring and support throughout the healing process"
+    },
+    "safety_protocols": {
+      "surgical_facilities": "All procedures should be performed in accredited surgical facilities with appropriate safety equipment and protocols",
+      "anesthesia_safety": "Qualified anesthesia providers and appropriate monitoring throughout surgical procedures",
+      "infection_prevention": "Strict sterile technique and antibiotic protocols to minimize infection risk",
+      "emergency_preparedness": "Facilities must have emergency protocols and equipment for managing complications"
+    },
+    "recovery_guidelines": {
+      "general_principles": "Recovery time varies by procedure complexity and individual healing factors",
+      "activity_restrictions": "Gradual return to normal activities based on healing progress and surgeon recommendations",
+      "wound_care": "Proper incision care and monitoring for signs of complications",
+      "follow_up_schedule": "Regular post-operative visits to monitor healing and address any concerns"
+    }
+  }
+}

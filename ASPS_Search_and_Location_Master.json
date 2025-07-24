@@ -1,0 +1,142 @@
+{
+  "title": "ASPS Website Search and Content Location Master Guide",
+  "description": "Complete reference for locating ANY content on plasticsurgery.org",
+  "universal_search_strategies": {
+    "by_medical_condition": {
+      "breast_cancer": "Reconstructive Procedures → Breast Reconstruction",
+      "cleft_lip": "Reconstructive Procedures → Cleft Lip and Palate",
+      "skin_cancer": "Reconstructive Procedures → Skin Cancer Reconstruction",
+      "burn_injuries": "Reconstructive Procedures → Burn Reconstruction",
+      "hand_injuries": "Reconstructive Procedures → Hand Surgery",
+      "lymphedema": "Reconstructive Procedures → Lymphedema Treatment"
+    },
+    "by_body_area": {
+      "breast": "Cosmetic Procedures → Breast section OR Reconstructive Procedures → Breast Reconstruction",
+      "face": "Cosmetic Procedures → Face and Neck section",
+      "nose": "Cosmetic Procedures → Rhinoplasty",
+      "eyes": "Cosmetic Procedures → Eyelid Surgery",
+      "abdomen": "Cosmetic Procedures → Tummy Tuck OR Liposuction",
+      "arms": "Cosmetic Procedures → Arm Lift OR Liposuction",
+      "thighs": "Cosmetic Procedures → Thigh Lift OR Liposuction",
+      "buttocks": "Cosmetic Procedures → Buttock Enhancement",
+      "hands": "Reconstructive Procedures → Hand Surgery"
+    },
+    "by_age_group": {
+      "teenagers": "Individual procedure pages include age considerations",
+      "young_adults": "Procedure pages discuss appropriate timing",
+      "middle_aged": "Anti-aging procedures in Face and Neck section",
+      "seniors": "Safety considerations in Patient Safety section"
+    },
+    "by_concern_type": {
+      "aging": "Cosmetic Procedures → Face and Neck → Facelift, Eyelid Surgery, Brow Lift",
+      "weight_loss": "Cosmetic Procedures → Body Contouring → Body Lift, Tummy Tuck",
+      "pregnancy_changes": "Cosmetic Procedures → Mommy Makeover",
+      "genetic_conditions": "Reconstructive Procedures → Congenital Conditions",
+      "injury_trauma": "Reconstructive Procedures → appropriate specialty area",
+      "cancer_treatment": "Reconstructive Procedures → Breast Reconstruction OR Skin Cancer Reconstruction"
+    }
+  },
+  "safety_information_locations": {
+    "implant_safety": {
+      "bia_alcl": "/patient-safety/breast-implant-safety/bia-alcl",
+      "implant_illness": "/patient-safety/breast-implant-safety/breast-implant-illness",
+      "rupture_detection": "/patient-safety/breast-implant-safety/rupture-detection",
+      "fda_updates": "/patient-safety/breast-implant-safety/fda-updates"
+    },
+    "surgical_safety": {
+      "choosing_surgeon": "/patient-safety/choose-plastic-surgeon",
+      "facility_standards": "/patient-safety/accredited-facilities",
+      "questions_to_ask": "/patient-safety/questions-to-ask",
+      "health_considerations": "/patient-safety/health-safety"
+    },
+    "procedure_risks": "Risk section within each individual procedure page"
+  },
+  "cost_information_locations": {
+    "procedure_costs": "Cost section within each procedure page",
+    "factors_affecting_cost": "Detailed in individual procedure cost sections",
+    "financing_options": "Payment and financing information in procedure pages",
+    "insurance_coverage": "Coverage information in reconstructive procedure pages"
+  },
+  "visual_resource_locations": {
+    "before_after_photos": {
+      "main_gallery": "/photo-gallery",
+      "procedure_specific": "Photo section within each procedure page",
+      "organization": "Categorized by procedure type and body area"
+    },
+    "educational_videos": {
+      "main_gallery": "/video-gallery",
+      "procedure_videos": "Video section within individual procedure pages",
+      "content_types": "Procedure explanations, patient testimonials, surgeon interviews"
+    },
+    "3d_animations": {
+      "main_section": "/3d-animations",
+      "procedure_specific": "3D animation section within procedure pages",
+      "interactive_features": "Step-by-step procedure visualization"
+    }
+  },
+  "professional_information_locations": {
+    "surgeon_verification": {
+      "find_surgeon_tool": "https://find.plasticsurgery.org",
+      "verification_guide": "/patient-safety/choose-plastic-surgeon",
+      "board_certification": "American Board of Plastic Surgery verification",
+      "asps_membership": "ASPS Member Surgeon verification"
+    },
+    "facility_information": {
+      "accreditation_guide": "/patient-safety/accredited-facilities",
+      "safety_standards": "Facility safety requirements and protocols",
+      "what_to_look_for": "Accreditation types and standards"
+    }
+  },
+  "research_and_statistics_locations": {
+    "annual_statistics": "/news/plastic-surgery-statistics",
+    "procedure_trends": "Statistical trends within annual report",
+    "demographic_data": "Patient demographics and geographic data",
+    "safety_data": "Complication rates and safety statistics"
+  },
+  "special_topics_locations": {
+    "revision_surgeries": "Revision information within original procedure pages",
+    "combination_procedures": "Multiple procedure information in relevant sections",
+    "international_patients": "Travel and international patient considerations",
+    "financing": "Payment options within individual procedure pages"
+  },
+  "navigation_shortcuts": {
+    "most_popular_procedures": [
+      "Breast Augmentation: /cosmetic-procedures/breast-augmentation",
+      "Rhinoplasty: /cosmetic-procedures/rhinoplasty",
+      "Liposuction: /cosmetic-procedures/liposuction",
+      "Tummy Tuck: /cosmetic-procedures/tummy-tuck",
+      "Facelift: /cosmetic-procedures/facelift",
+      "Breast Lift: /cosmetic-procedures/breast-lift"
+    ],
+    "most_searched_safety_topics": [
+      "BIA-ALCL: /patient-safety/breast-implant-safety/bia-alcl",
+      "Find Surgeon: https://find.plasticsurgery.org",
+      "Board Certification: /patient-safety/choose-plastic-surgeon",
+      "Facility Safety: /patient-safety/accredited-facilities"
+    ]
+  },
+  "alternative_search_methods": {
+    "site_search": "Use search box in header with keywords",
+    "google_search": "Use 'site:plasticsurgery.org [search term]' in Google",
+    "mobile_menu": "Hamburger menu provides full navigation access",
+    "sitemap": "/sitemap provides complete site structure"
+  },
+  "common_search_terms_and_locations": {
+    "breast_augmentation": "/cosmetic-procedures/breast-augmentation",
+    "nose_job": "/cosmetic-procedures/rhinoplasty",
+    "tummy_tuck": "/cosmetic-procedures/tummy-tuck",
+    "facelift": "/cosmetic-procedures/facelift",
+    "liposuction": "/cosmetic-procedures/liposuction",
+    "breast_reduction": "/cosmetic-procedures/breast-reduction",
+    "mommy_makeover": "/cosmetic-procedures/mommy-makeover",
+    "botox": "/cosmetic-procedures/botox",
+    "breast_reconstruction": "/reconstructive-procedures/breast-reconstruction",
+    "bia_alcl": "/patient-safety/breast-implant-safety/bia-alcl",
+    "find_surgeon": "https://find.plasticsurgery.org",
+    "safety": "/patient-safety",
+    "costs": "Cost section within procedure pages",
+    "photos": "/photo-gallery",
+    "videos": "/video-gallery",
+    "statistics": "/news/plastic-surgery-statistics"
+  }
+}
